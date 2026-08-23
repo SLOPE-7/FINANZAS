@@ -47,8 +47,7 @@ export async function unarchiveAccount(id) {
 }
 
 // Borra solo si la cuenta no tiene movimientos. Si los tiene,
-// la base de datos lo impide (on delete restrict) y devolvemos
-// un mensaje entendible en vez del error de Postgres.
+// la base de datos lo impide y devolvemos un mensaje entendible.
 export async function deleteAccount(id) {
   const { error } = await supabase.from('accounts').delete().eq('id', id)
   if (error) {
@@ -59,8 +58,7 @@ export async function deleteAccount(id) {
   }
 }
 
-// Los campos que solo aplican a tarjetas se anulan en los demás tipos,
-// para que no queden datos huérfanos si cambias el tipo de cuenta.
+// Los campos que solo aplican a tarjetas se anulan en los demás tipos.
 function clean(v) {
   const isCard = v.type === 'tarjeta'
   return {
