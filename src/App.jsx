@@ -6,6 +6,7 @@ import Login from './pages/Login.jsx'
 import Placeholder from './pages/Placeholder.jsx'
 import Accounts from './pages/Accounts.jsx'
 import Transactions from './pages/Transactions.jsx'
+import Payments from './pages/Payments.jsx'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -44,7 +45,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Placeholder title="Inicio" />} />
         <Route path="/movimientos" element={<Transactions />} />
-        <Route path="/pagos" element={<Placeholder title="Pagos" />} />
+        <Route path="/pagos" element={<Payments />} />
         <Route path="/cuentas" element={<Accounts />} />
         <Route path="/ajustes" element={<Placeholder title="Ajustes" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
