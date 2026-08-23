@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { todayISO } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
-import { listCategories } from '../lib/categories.js'
 import { RECURRENCES, createPayment, updatePayment } from '../lib/payments.js'
+import CategorySelect from './CategorySelect.jsx'
 
 export default function PaymentForm({ payment, onDone, onCancel }) {
   const [v, setV] = useState({
@@ -15,7 +15,6 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
     notify: payment?.notify ?? true
   })
   const [accounts, setAccounts] = useState([])
-  const [categories, setCategories] = useState([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -23,7 +22,6 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
 
   useEffect(() => {
     listAccounts().then(setAccounts).catch(e => setError(e.message))
-    listCategories('egreso').then(setCategories).catch(e => setError(e.message))
   }, [])
 
   async function save() {
@@ -74,7 +72,7 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
 
         <div>
           <label htmlFor="rec">Se repite</label>
-          <select id="rec" value={v.recurrence} onChange={set('rec')} onChangeCapture={set('recurrence')}>
+          <select id="rec" value={v.recurrence} onChange={set('recurrence')}>
             {RECURRENCES.map(r => (
               <option key={r.value} value={r.value}>{r.label}</option>
             ))}
@@ -88,12 +86,12 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
       <div className="card stack">
         <div>
           <label htmlFor="cat">Categoría</label>
-          <select id="cat" value={v.category_id} onChange={set('category_id')}>
-            <option value="">Sin categoría</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
-            ))}
-          </select>
+          <CategorySelect
+            id="cat"
+            kind="egreso"
+            value={v.category_id}
+            onChange={set('category_id')}
+          />
         </div>
 
         <div>
