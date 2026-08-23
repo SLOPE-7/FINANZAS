@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { todayISO } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
-import { listCategories } from '../lib/categories.js'
 import { createTransaction, updateTransaction } from '../lib/transactions.js'
+import CategorySelect from './CategorySelect.jsx'
 
 const TABS = [
   { kind: 'egreso',        label: 'Gasto' },
@@ -22,7 +22,6 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
     note: tx?.note ?? ''
   })
   const [accounts, setAccounts] = useState([])
-  const [categories, setCategories] = useState([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -33,20 +32,12 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
     listAccounts()
       .then(list => {
         setAccounts(list)
-        // Preselecciona la primera cuenta para ahorrar un toque.
         if (!v.account_id && list.length) {
           setV(prev => ({ ...prev, account_id: list[0].id }))
         }
       })
       .catch(e => setError(e.message))
   }, [])
-
-  useEffect(() => {
-    if (esTransferencia) { setCategories([]); return }
-    listCategories(v.kind)
-      .then(setCategories)
-      .catch(e => setError(e.message))
-  }, [v.kind])
 
   function cambiarTipo(kind) {
     setV(prev => ({ ...prev, kind, category_id: '', to_account_id: '' }))
@@ -154,12 +145,12 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
         ) : (
           <div>
             <label htmlFor="cat">Categoría</label>
-            <select id="cat" value={v.category_id} onChange={set('category_id')}>
-              <option value="">Sin categoría</option>
-              {categories.map(c => (
-                <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
-              ))}
-            </select>
+            <CategorySelect
+              id="cat"
+              kind={v.kind}
+              value={v.category_id}
+              onChange={set('category_id')}
+            />
           </div>
         )}
 
