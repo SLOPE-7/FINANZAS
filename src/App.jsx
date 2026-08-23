@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase.js'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
-import Placeholder from './pages/Placeholder.jsx'
+import Dashboard from './pages/Dashboard.jsx'
 import Accounts from './pages/Accounts.jsx'
 import Transactions from './pages/Transactions.jsx'
 import Payments from './pages/Payments.jsx'
@@ -44,7 +44,7 @@ export default function App() {
   return (
     <Layout session={session}>
       <Routes>
-        <Route path="/" element={<Placeholder title="Inicio" />} />
+        <Route path="/" element={<Dashboard />} />
         <Route path="/movimientos" element={<Transactions />} />
         <Route path="/pagos" element={<Payments />} />
         <Route path="/cuentas" element={<Accounts />} />
