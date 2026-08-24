@@ -1,11 +1,22 @@
 import { supabase } from './supabase.js'
 
 export const ACCOUNT_TYPES = [
-  { value: 'banco',     label: 'Banco',     emoji: '🏦' },
-  { value: 'efectivo',  label: 'Efectivo',  emoji: '💵' },
-  { value: 'tarjeta',   label: 'Tarjeta de crédito', emoji: '💳' },
-  { value: 'billetera', label: 'Billetera', emoji: '📱' }
+  { value: 'banco',      label: 'Banco',              emoji: '🏦' },
+  { value: 'efectivo',   label: 'Efectivo',           emoji: '💵' },
+  { value: 'ahorro',     label: 'Ahorro apartado',    emoji: '🐷' },
+  { value: 'por_cobrar', label: 'Por cobrar',         emoji: '🤝' },
+  { value: 'tarjeta',    label: 'Tarjeta de crédito', emoji: '💳' },
+  { value: 'billetera',  label: 'Billetera',          emoji: '📱' }
 ]
+
+// Solo estas cuentas cuentan como dinero que puedes gastar hoy.
+// El ahorro apartado y lo que te deben son tuyos, pero no están
+// a mano: entran en el patrimonio, no en el disponible.
+const LIQUIDAS = ['banco', 'efectivo', 'billetera']
+
+export function esLiquida(type) {
+  return LIQUIDAS.includes(type)
+}
 
 export function typeLabel(value) {
   return ACCOUNT_TYPES.find(t => t.value === value)?.label ?? value
@@ -46,8 +57,6 @@ export async function unarchiveAccount(id) {
   if (error) throw error
 }
 
-// Borra solo si la cuenta no tiene movimientos. Si los tiene,
-// la base de datos lo impide y devolvemos un mensaje entendible.
 export async function deleteAccount(id) {
   const { error } = await supabase.from('accounts').delete().eq('id', id)
   if (error) {
@@ -58,7 +67,6 @@ export async function deleteAccount(id) {
   }
 }
 
-// Los campos que solo aplican a tarjetas se anulan en los demás tipos.
 function clean(v) {
   const isCard = v.type === 'tarjeta'
   return {
