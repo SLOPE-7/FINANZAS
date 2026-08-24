@@ -10,6 +10,15 @@ const TABS = [
   { kind: 'transferencia', label: 'Transferencia' }
 ]
 
+// Guarda en el navegador la última cuenta usada por tipo de movimiento,
+// para no tener que elegirla cada vez. Si falla, no pasa nada.
+function recordarCuenta(kind, id) {
+  try { window.localStorage.setItem(`ultima_cuenta_${kind}`, id) } catch {}
+}
+function cuentaRecordada(kind) {
+  try { return window.localStorage.getItem(`ultima_cuenta_${kind}`) } catch { return null }
+}
+
 export default function TransactionForm({ tx, onDone, onCancel }) {
   const [v, setV] = useState({
     kind: tx?.kind ?? 'egreso',
@@ -32,15 +41,27 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
     listAccounts()
       .then(list => {
         setAccounts(list)
-        if (!v.account_id && list.length) {
-          setV(prev => ({ ...prev, account_id: list[0].id }))
-        }
+        if (tx) return
+        const recordada = cuentaRecordada(v.kind)
+        const existe = list.some(a => a.id === recordada)
+        setV(prev => ({
+          ...prev,
+          account_id: existe ? recordada : (list[0]?.id ?? '')
+        }))
       })
       .catch(e => setError(e.message))
   }, [])
 
   function cambiarTipo(kind) {
-    setV(prev => ({ ...prev, kind, category_id: '', to_account_id: '' }))
+    const recordada = cuentaRecordada(kind)
+    const existe = accounts.some(a => a.id === recordada)
+    setV(prev => ({
+      ...prev,
+      kind,
+      category_id: '',
+      to_account_id: '',
+      account_id: existe ? recordada : prev.account_id
+    }))
     setError('')
   }
 
@@ -56,6 +77,7 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
     try {
       if (tx) await updateTransaction(tx.id, v)
       else await createTransaction(v)
+      recordarCuenta(v.kind, v.account_id)
       onDone()
     } catch (e) {
       setError(e.message); setBusy(false)
@@ -98,7 +120,8 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
             id="amount" type="text" inputMode="decimal"
             value={v.amount} onChange={set('amount')}
             placeholder="0.00"
-            style={{ fontSize: 24, fontWeight: 600, padding: '14px 12px' }}
+            autoFocus={!tx}
+            style={{ fontSize: 26, fontWeight: 600, padding: '15px 12px' }}
           />
         </div>
 
@@ -110,13 +133,18 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
           />
         </div>
 
-        <div>
-          <label htmlFor="date">Fecha</label>
-          <input id="date" type="date" value={v.occurred_on} onChange={set('occurred_on')} />
-        </div>
-      </div>
+        {!esTransferencia && (
+          <div>
+            <label htmlFor="cat">Categoría</label>
+            <CategorySelect
+              id="cat"
+              kind={v.kind}
+              value={v.category_id}
+              onChange={set('category_id')}
+            />
+          </div>
+        )}
 
-      <div className="card stack">
         <div>
           <label htmlFor="acc">{esTransferencia ? 'Desde' : 'Cuenta'}</label>
           <select id="acc" value={v.account_id} onChange={set('account_id')}>
@@ -127,7 +155,7 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
           </select>
         </div>
 
-        {esTransferencia ? (
+        {esTransferencia && (
           <div>
             <label htmlFor="dest">Hacia</label>
             <select id="dest" value={v.to_account_id} onChange={set('to_account_id')}>
@@ -142,22 +170,7 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
               Una transferencia no cuenta como gasto. El dinero solo cambia de lugar.
             </p>
           </div>
-        ) : (
-          <div>
-            <label htmlFor="cat">Categoría</label>
-            <CategorySelect
-              id="cat"
-              kind={v.kind}
-              value={v.category_id}
-              onChange={set('category_id')}
-            />
-          </div>
         )}
-
-        <div>
-          <label htmlFor="note">Nota (opcional)</label>
-          <input id="note" value={v.note} onChange={set('note')} placeholder="" />
-        </div>
       </div>
 
       {error && <div className="error">{error}</div>}
@@ -165,6 +178,23 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
       <button className="btn btn-primary btn-block" onClick={save} disabled={busy}>
         {busy ? 'Guardando…' : tx ? 'Guardar cambios' : 'Registrar'}
       </button>
+
+      {/* Fecha y nota al final: casi siempre son hoy y vacía */}
+      <details>
+        <summary className="faint" style={{ fontSize: 13, padding: '6px 0', cursor: 'pointer' }}>
+          Fecha y nota
+        </summary>
+        <div className="card stack" style={{ marginTop: 8 }}>
+          <div>
+            <label htmlFor="date">Fecha</label>
+            <input id="date" type="date" value={v.occurred_on} onChange={set('occurred_on')} />
+          </div>
+          <div>
+            <label htmlFor="note">Nota</label>
+            <input id="note" value={v.note} onChange={set('note')} />
+          </div>
+        </div>
+      </details>
     </div>
   )
 }
