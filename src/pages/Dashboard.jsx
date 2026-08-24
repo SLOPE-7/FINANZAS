@@ -30,7 +30,6 @@ export default function Dashboard() {
 
   return (
     <div className="page stack">
-      {/* La cifra que importa: lo que queda después de lo ya comprometido */}
       <div className="card">
         <div className="figure-label">Realmente disponible</div>
         <div className={'figure-lg num ' + (negativo ? 'neg' : '')}>
@@ -38,13 +37,17 @@ export default function Dashboard() {
         </div>
 
         <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-          <Linea etiqueta="Saldo en cuentas" valor={money(d.saldo)} />
-          <Linea etiqueta="Comprometido en 30 días" valor={'− ' + money(d.comprometido)} clase="warn" />
+          <Linea etiqueta="Efectivo y bancos" valor={money(d.saldo)} />
+          <Linea
+            etiqueta="Comprometido en 30 días"
+            valor={'− ' + money(d.comprometido)}
+            clase="warn"
+          />
         </div>
 
         {negativo && (
           <p className="neg" style={{ fontSize: 13, marginTop: 10 }}>
-            Tus pagos próximos superan lo que tienes. Revisa qué puedes mover.
+            Tus pagos próximos superan lo que tienes a mano.
           </p>
         )}
 
@@ -55,7 +58,17 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Mes en curso */}
+      {/* Dinero tuyo que no está a mano */}
+      {(d.apartado > 0 || d.porCobrar > 0) && (
+        <div className="card">
+          <div className="figure-label">Tuyo, pero no disponible</div>
+          <div style={{ marginTop: 8 }}>
+            {d.apartado > 0 && <Linea etiqueta="Ahorro apartado" valor={money(d.apartado)} />}
+            {d.porCobrar > 0 && <Linea etiqueta="Te deben" valor={money(d.porCobrar)} />}
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="between">
           <div>
@@ -76,7 +89,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Próximos pagos */}
       {d.proximos.length > 0 && (
         <>
           <div className="section-title">Próximos pagos</div>
@@ -104,7 +116,6 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Gasto por categoría */}
       {d.porCategoria.length > 0 && (
         <>
           <div className="section-title">Gastos del mes por categoría</div>
@@ -116,16 +127,10 @@ export default function Dashboard() {
                   <span className="num" style={{ fontSize: 14 }}>{money(c.total)}</span>
                 </div>
                 <div style={{
-                  height: 4,
-                  background: 'var(--surface-2)',
-                  borderRadius: 2,
-                  overflow: 'hidden'
+                  height: 4, background: 'var(--surface-2)',
+                  borderRadius: 2, overflow: 'hidden'
                 }}>
-                  <div style={{
-                    width: `${c.pct}%`,
-                    height: '100%',
-                    background: c.color
-                  }} />
+                  <div style={{ width: `${c.pct}%`, height: '100%', background: c.color }} />
                 </div>
               </div>
             ))}
@@ -133,7 +138,6 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Patrimonio, al final: informativo, no accionable */}
       <div className="card">
         <div className="between">
           <span className="figure-label">Patrimonio neto</span>
