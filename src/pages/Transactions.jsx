@@ -48,6 +48,15 @@ export default function Transactions() {
 
   return (
     <div className="page stack">
+      {/* Lo primero de la pantalla: registrar. Es lo que más se usa. */}
+      <button
+        className="btn btn-primary btn-block"
+        style={{ padding: '15px', fontSize: 16 }}
+        onClick={() => setEditing('new')}
+      >
+        Registrar movimiento
+      </button>
+
       <div className="between">
         <button className="btn btn-ghost" onClick={() => moverMes(-1)}>‹</button>
         <span style={{ fontSize: 14, fontWeight: 500 }}>
@@ -74,10 +83,6 @@ export default function Transactions() {
           </div>
         </div>
       </div>
-
-      <button className="btn btn-primary btn-block" onClick={() => setEditing('new')}>
-        Registrar movimiento
-      </button>
 
       {error && <div className="error">{error}</div>}
 
