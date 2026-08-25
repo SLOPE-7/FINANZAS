@@ -54,6 +54,10 @@ export default function Payments() {
   }
 
   const { total, vencido } = committed(pendientes)
+  const saldoDe = (id) => {
+    const a = accounts.find(x => x.id === id)
+    return a ? Math.abs(Number(a.balance)) : null
+  }
 
   return (
     <div className="page stack">
@@ -90,10 +94,11 @@ export default function Payments() {
               <PendingRow
                 key={p.id}
                 payment={p}
+                restante={p.target_account_id ? saldoDe(p.target_account_id) : null}
                 onPay={() => setPaying(p)}
                 onEdit={() => setEditing(p)}
                 onSkip={async () => {
-                  if (!confirm(`¿Omitir "${p.name}"? No se registrará ningún gasto.`)) return
+                  if (!confirm(`¿Omitir "${p.name}"? No se registrará nada.`)) return
                   try { await skipPayment(p.id); load() } catch (e) { setError(e.message) }
                 }}
                 onDelete={async () => {
@@ -139,7 +144,7 @@ export default function Payments() {
   )
 }
 
-function PendingRow({ payment: p, onPay, onEdit, onSkip, onDelete }) {
+function PendingRow({ payment: p, restante, onPay, onEdit, onSkip, onDelete }) {
   const [open, setOpen] = useState(false)
   const dias = daysUntil(p.due_date)
 
@@ -152,10 +157,17 @@ function PendingRow({ payment: p, onPay, onEdit, onSkip, onDelete }) {
   return (
     <>
       <button className="list-item" onClick={() => setOpen(v => !v)}>
-        <span style={{ fontSize: 18 }}>{p.category?.emoji ?? '📅'}</span>
+        <span style={{ fontSize: 18 }}>
+          {p.target?.emoji ?? p.category?.emoji ?? '📅'}
+        </span>
         <span className="grow">
           <span style={{ display: 'block' }}>{p.name}</span>
-          <span className={clase} style={{ fontSize: 12 }}>{estado}</span>
+          <span className={clase} style={{ fontSize: 12 }}>
+            {estado}
+            {restante !== null && (
+              <span className="faint"> · faltan {money(restante)}</span>
+            )}
+          </span>
         </span>
         <span className="figure-md num">{money(p.amount)}</span>
       </button>
@@ -195,6 +207,9 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const destino = accounts.find(a => a.id === p.target_account_id)
+  const restante = destino ? Math.abs(Number(destino.balance)) : null
+
   async function confirmar() {
     if (!accountId) { setError('Elige la cuenta de donde salió'); return }
     setBusy(true); setError('')
@@ -221,6 +236,11 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
           <div className="faint" style={{ fontSize: 13 }}>
             Vencía el {shortDate(p.due_date)}
           </div>
+          {destino && (
+            <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+              Abona a {destino.emoji} {destino.name} · faltan {money(restante)}
+            </div>
+          )}
         </div>
 
         <div>
@@ -231,7 +251,7 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
             style={{ fontSize: 22, fontWeight: 600, padding: '13px 12px' }}
           />
           <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
-            Si la factura vino distinta, corrígelo aquí.
+            Si abonas más o menos de la cuota, corrígelo aquí.
           </p>
         </div>
 
@@ -239,9 +259,11 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
           <label htmlFor="cuenta">Salió de</label>
           <select id="cuenta" value={accountId} onChange={e => setAccountId(e.target.value)}>
             <option value="">Elegir…</option>
-            {accounts.map(a => (
-              <option key={a.id} value={a.id}>{a.emoji} {a.name}</option>
-            ))}
+            {accounts
+              .filter(a => a.id !== p.target_account_id)
+              .map(a => (
+                <option key={a.id} value={a.id}>{a.emoji} {a.name}</option>
+              ))}
           </select>
         </div>
 
