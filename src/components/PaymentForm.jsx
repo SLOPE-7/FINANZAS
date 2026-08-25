@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { todayISO } from '../lib/format.js'
+import { todayISO, money } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
 import { RECURRENCES, createPayment, updatePayment } from '../lib/payments.js'
 import CategorySelect from './CategorySelect.jsx'
@@ -12,6 +12,7 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
     recurrence: payment?.recurrence ?? 'mensual',
     category_id: payment?.category_id ?? '',
     account_id: payment?.account_id ?? '',
+    target_account_id: payment?.target_account_id ?? '',
     notify: payment?.notify ?? true
   })
   const [accounts, setAccounts] = useState([])
@@ -19,10 +20,19 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
   const [busy, setBusy] = useState(false)
 
   const set = (k) => (e) => setV(prev => ({ ...prev, [k]: e.target.value }))
+  const abona = !!v.target_account_id
 
   useEffect(() => {
     listAccounts().then(setAccounts).catch(e => setError(e.message))
   }, [])
+
+  // Solo tiene sentido abonar a deudas o ahorros, no a la cuenta corriente.
+  const destinos = accounts.filter(a =>
+    a.type === 'tarjeta' || a.type === 'ahorro'
+  )
+
+  const destino = accounts.find(a => a.id === v.target_account_id)
+  const restante = destino ? Math.abs(Number(destino.balance)) : 0
 
   async function save() {
     if (!v.name.trim()) { setError('Ponle un nombre al pago'); return }
@@ -52,11 +62,11 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
       <div className="card stack">
         <div>
           <label htmlFor="name">Nombre</label>
-          <input id="name" value={v.name} onChange={set('name')} placeholder="Internet" />
+          <input id="name" value={v.name} onChange={set('name')} placeholder="Cuota de la tablet" />
         </div>
 
         <div>
-          <label htmlFor="amount">Monto</label>
+          <label htmlFor="amount">Monto de cada cuota</label>
           <input
             id="amount" type="text" inputMode="decimal"
             value={v.amount} onChange={set('amount')}
@@ -77,22 +87,42 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
               <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>
-          <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
-            Al marcarlo pagado se crea el gasto real y aparece la siguiente fecha.
-          </p>
         </div>
       </div>
 
       <div className="card stack">
         <div>
-          <label htmlFor="cat">Categoría</label>
-          <CategorySelect
-            id="cat"
-            kind="egreso"
-            value={v.category_id}
-            onChange={set('category_id')}
-          />
+          <label htmlFor="target">¿Abona a una deuda o ahorro?</label>
+          <select id="target" value={v.target_account_id} onChange={set('target_account_id')}>
+            <option value="">No, es un gasto normal</option>
+            {destinos.map(a => (
+              <option key={a.id} value={a.id}>{a.emoji} {a.name}</option>
+            ))}
+          </select>
+
+          {abona ? (
+            <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
+              Faltan {money(restante)}. Cada cuota baja ese saldo y no cuenta como gasto.
+            </p>
+          ) : (
+            <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
+              Para llevar el total pendiente, crea primero la cuenta en Cuentas
+              (tipo Tarjeta con el saldo en negativo, o Ahorro apartado).
+            </p>
+          )}
         </div>
+
+        {!abona && (
+          <div>
+            <label htmlFor="cat">Categoría</label>
+            <CategorySelect
+              id="cat"
+              kind="egreso"
+              value={v.category_id}
+              onChange={set('category_id')}
+            />
+          </div>
+        )}
 
         <div>
           <label htmlFor="acc">Cuenta habitual (opcional)</label>
