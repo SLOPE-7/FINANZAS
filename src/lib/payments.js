@@ -1,10 +1,13 @@
 import { supabase } from './supabase.js'
 import { todayISO } from './format.js'
 
+// Con dos claves foráneas hacia accounts hay que nombrarlas
+// explícitamente o PostgREST no sabe cuál usar.
 const SELECT = `
   id, name, amount, due_date, recurrence, status, notify,
-  account_id, category_id,
-  account:accounts (id, name, emoji),
+  account_id, category_id, target_account_id,
+  account:accounts!scheduled_payments_account_id_fkey (id, name, emoji),
+  target:accounts!scheduled_payments_target_account_id_fkey (id, name, emoji, type),
   category:categories (id, name, emoji, color)
 `
 
@@ -37,8 +40,6 @@ export async function listHistory(limit = 30) {
   return data ?? []
 }
 
-// Dinero comprometido: lo que ya está apalabrado y todavía no sale
-// de la cuenta. Incluye lo vencido, porque sigue debiéndose.
 export function committed(pendientes, hastaDias = 30) {
   const hoy = new Date(todayISO())
   const limite = new Date(hoy)
@@ -69,7 +70,6 @@ export async function deletePayment(id) {
   if (error) throw error
 }
 
-// Registra el pago real y, si es recurrente, genera la siguiente fecha.
 export async function markPaid({ paymentId, accountId, paidOn, amount }) {
   const { error } = await supabase.rpc('mark_payment_paid', {
     p_payment_id: paymentId,
@@ -80,7 +80,6 @@ export async function markPaid({ paymentId, accountId, paidOn, amount }) {
   if (error) throw error
 }
 
-// Omitir no crea movimiento: el mes que no tocó pagar, simplemente no pagaste.
 export async function skipPayment(id) {
   const { error } = await supabase
     .from('scheduled_payments')
@@ -90,13 +89,16 @@ export async function skipPayment(id) {
 }
 
 function clean(v) {
+  const abona = !!v.target_account_id
   return {
     name: (v.name ?? '').trim(),
     amount: toNumber(v.amount),
     due_date: v.due_date,
     recurrence: v.recurrence || 'ninguna',
-    category_id: v.category_id || null,
+    // Si abona a una cuenta es traslado, no gasto: la categoría sobra.
+    category_id: abona ? null : (v.category_id || null),
     account_id: v.account_id || null,
+    target_account_id: v.target_account_id || null,
     notify: v.notify !== false
   }
 }
