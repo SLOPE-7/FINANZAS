@@ -1,14 +1,20 @@
 import { useState } from 'react'
 import { ACCOUNT_TYPES, createAccount, updateAccount } from '../lib/accounts.js'
 
-const EMOJIS = ['🏦', '💵', '💳', '📱', '🐷', '🏧', '💰', '📊']
+const EMOJIS = ['🏦', '💵', '💳', '📱', '🐷', '🏧', '💰', '📊', '🤝']
 
 export default function AccountForm({ account, onDone, onCancel }) {
+  const inicial = Number(account?.initial_balance ?? 0)
+  const esDeudaInicial = account?.type === 'tarjeta'
+
   const [v, setV] = useState({
     name: account?.name ?? '',
     type: account?.type ?? 'banco',
     emoji: account?.emoji ?? '🏦',
-    initial_balance: account?.initial_balance ?? '',
+    // En tarjetas se muestra en positivo y el signo se pone al guardar.
+    initial_balance: account
+      ? String(esDeudaInicial ? Math.abs(inicial) : inicial)
+      : '',
     credit_limit: account?.credit_limit ?? '',
     statement_day: account?.statement_day ?? '',
     due_day: account?.due_day ?? ''
@@ -22,9 +28,18 @@ export default function AccountForm({ account, onDone, onCancel }) {
   async function save() {
     if (!v.name.trim()) { setError('Ponle un nombre a la cuenta'); return }
     setBusy(true); setError('')
+
+    // El teclado del móvil no tiene signo menos, así que en tarjetas
+    // pedimos la deuda en positivo y la convertimos aquí.
+    const monto = Math.abs(Number(String(v.initial_balance).replace(/,/g, '')) || 0)
+    const valores = {
+      ...v,
+      initial_balance: esTarjeta ? -monto : Number(v.initial_balance) || 0
+    }
+
     try {
-      if (account) await updateAccount(account.id, v)
-      else await createAccount(v)
+      if (account) await updateAccount(account.id, valores)
+      else await createAccount(valores)
       onDone()
     } catch (e) {
       setError(e.message); setBusy(false)
@@ -83,7 +98,7 @@ export default function AccountForm({ account, onDone, onCancel }) {
 
         <div>
           <label htmlFor="initial">
-            {esTarjeta ? 'Saldo actual de la tarjeta' : 'Saldo actual'}
+            {esTarjeta ? '¿Cuánto debes hoy?' : 'Saldo actual'}
           </label>
           <input
             id="initial" type="text" inputMode="decimal"
@@ -92,7 +107,7 @@ export default function AccountForm({ account, onDone, onCancel }) {
           />
           <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
             {esTarjeta
-              ? 'Lo que debes hoy, en negativo. Si debes L 4,500 escribe -4500.'
+              ? 'Escríbelo en positivo. La app lo registra como deuda.'
               : 'Lo que tienes hoy en esta cuenta. Desde aquí se calcula todo.'}
           </p>
         </div>
@@ -100,7 +115,7 @@ export default function AccountForm({ account, onDone, onCancel }) {
 
       {esTarjeta && (
         <div className="card stack">
-          <span className="figure-label">Datos de la tarjeta</span>
+          <span className="figure-label">Datos de la tarjeta (opcional)</span>
 
           <div>
             <label htmlFor="limit">Límite de crédito</label>
