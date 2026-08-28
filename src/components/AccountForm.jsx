@@ -11,7 +11,6 @@ export default function AccountForm({ account, onDone, onCancel }) {
     name: account?.name ?? '',
     type: account?.type ?? 'banco',
     emoji: account?.emoji ?? '🏦',
-    // En tarjetas se muestra en positivo y el signo se pone al guardar.
     initial_balance: account
       ? String(esDeudaInicial ? Math.abs(inicial) : inicial)
       : '',
@@ -25,16 +24,30 @@ export default function AccountForm({ account, onDone, onCancel }) {
   const esTarjeta = v.type === 'tarjeta'
   const set = (k) => (e) => setV({ ...v, [k]: e.target.value })
 
+  // Acepta comas de miles y espacios: en el móvil es fácil que se cuelen
+  // al pegar o al escribir, y antes rompían el número en silencio.
+  function aNumero(x) {
+    const limpio = String(x ?? '').replace(/[\s,]/g, '')
+    const n = Number(limpio)
+    return Number.isFinite(n) ? n : NaN
+  }
+
   async function save() {
     if (!v.name.trim()) { setError('Ponle un nombre a la cuenta'); return }
+
+    const monto = aNumero(v.initial_balance || 0)
+    if (Number.isNaN(monto)) {
+      setError('El saldo no es un número válido')
+      return
+    }
+
     setBusy(true); setError('')
 
-    // El teclado del móvil no tiene signo menos, así que en tarjetas
-    // pedimos la deuda en positivo y la convertimos aquí.
-    const monto = Math.abs(Number(String(v.initial_balance).replace(/,/g, '')) || 0)
+    // En tarjetas se pide en positivo porque el teclado del móvil
+    // no trae signo menos; el negativo se aplica aquí.
     const valores = {
       ...v,
-      initial_balance: esTarjeta ? -monto : Number(v.initial_balance) || 0
+      initial_balance: esTarjeta ? -Math.abs(monto) : monto
     }
 
     try {
@@ -98,7 +111,7 @@ export default function AccountForm({ account, onDone, onCancel }) {
 
         <div>
           <label htmlFor="initial">
-            {esTarjeta ? '¿Cuánto debes hoy?' : 'Saldo actual'}
+            {esTarjeta ? 'Deuda de partida' : 'Saldo de partida'}
           </label>
           <input
             id="initial" type="text" inputMode="decimal"
@@ -106,9 +119,11 @@ export default function AccountForm({ account, onDone, onCancel }) {
             placeholder="0.00"
           />
           <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
-            {esTarjeta
-              ? 'Escríbelo en positivo. La app lo registra como deuda.'
-              : 'Lo que tienes hoy en esta cuenta. Desde aquí se calcula todo.'}
+            {account
+              ? 'Es el punto de partida, no el saldo de hoy. El saldo actual sale de sumar los movimientos a este número. Cámbialo solo si vas a recalcular.'
+              : esTarjeta
+                ? 'Lo que debes hoy, en positivo. La app lo registra como deuda.'
+                : 'Lo que tienes hoy. A partir de aquí se suman los movimientos que registres.'}
           </p>
         </div>
       </div>
