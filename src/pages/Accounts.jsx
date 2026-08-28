@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { money } from '../lib/format.js'
 import {
-  listAccounts, typeLabel, archiveAccount, unarchiveAccount, deleteAccount
+  listAccounts, getAccount, typeLabel,
+  archiveAccount, unarchiveAccount, deleteAccount
 } from '../lib/accounts.js'
 import AccountForm from '../components/AccountForm.jsx'
 
@@ -23,6 +24,17 @@ export default function Accounts() {
   }
 
   useEffect(() => { load() }, [showArchived])
+
+  // Trae la fila real de accounts, no la de la vista: la vista es
+  // un cálculo y no sirve para rellenar el formulario de edición.
+  async function abrirEdicion(id) {
+    setError('')
+    try {
+      setEditing(await getAccount(id))
+    } catch (e) {
+      setError(e.message)
+    }
+  }
 
   const activos = items.filter(a => !a.archived)
   const total = activos.reduce((s, a) => s + Number(a.balance), 0)
@@ -75,7 +87,7 @@ export default function Accounts() {
             <AccountRow
               key={a.id}
               account={a}
-              onEdit={() => setEditing(a)}
+              onEdit={() => abrirEdicion(a.id)}
               onArchive={async () => { await archiveAccount(a.id); load() }}
               onUnarchive={async () => { await unarchiveAccount(a.id); load() }}
               onDelete={async () => {
