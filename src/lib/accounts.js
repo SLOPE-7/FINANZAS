@@ -6,7 +6,7 @@ export const ACCOUNT_TYPES = [
   { value: 'ahorro',     label: 'Ahorro apartado',    emoji: '🐷' },
   { value: 'por_cobrar', label: 'Por cobrar',         emoji: '🤝' },
   { value: 'tarjeta',    label: 'Tarjeta de crédito', emoji: '💳' },
-  { value: 'billetera',  label: 'Billetera',          emoji: '📱' }
+  { value: 'billetera',  label: 'Billetera',          emoji: '💼' }
 ]
 
 // Solo estas cuentas cuentan como dinero que puedes gastar hoy.
