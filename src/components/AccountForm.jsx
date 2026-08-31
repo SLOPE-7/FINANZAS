@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ACCOUNT_TYPES, createAccount, updateAccount } from '../lib/accounts.js'
 
-const EMOJIS = ['🏦', '💵', '💳', '📱', '🐷', '🏧', '💰', '📊', '🤝']
+const EMOJIS = ['🏦', '💵', '💳', '📱', '🐷', '🏧', '💰', '📊', '🤝', '💼']
 
 export default function AccountForm({ account, onDone, onCancel }) {
   const inicial = Number(account?.initial_balance ?? 0)
