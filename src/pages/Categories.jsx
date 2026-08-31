@@ -3,15 +3,9 @@ import {
   listCategoryTree, createCategory, updateCategory, archiveCategory
 } from '../lib/categories.js'
 
-const EMOJIS = ['🧒','👦','👧','📲','🏪','🛒','🚗','🎓','🍎','💊','🧴',
-                '🏠','⚡','🌐','🍔','⛽','🎮','💳','📉','📌','💼','🏥'
-               '🍬', '☕️', '🍼', '🥛', '🥤', '🧃', '🧉', '🧊', '🍽', '🍯',
-               '⚽️', '🎈', '🎮', '🎰', '🛍', '👔', '🩱', '👟', '👠', '🔔',
-               '📷', '💻', '🖥', '🖨', '⌨️', '🖱', '📘', '📚', '💸', '💷',
-               '💶', '💵', '💴', '🛁', '🪪', '⛔️', '🚼', '🚰', '🔁', '💱',
-               '💲', '🏡', '🏠', '🏚', '🏟', '🏛', '🏥', '🏦', '🏩', '🏫',
-               '🚑', '🚓', '🚍', '🏍', '🛺', '🚲', '🛣', '🛤', '⌚️', '☔️',
-               '💧', '🔥']
+// Atajo para los más frecuentes. Para cualquier otro se pega
+// directamente en el campo, así no hace falta una cuadrícula enorme.
+const RAPIDOS = ['🍎','🛒','🚗','🏠','⚡','💊','🎓','👕','🎮','📱','💳','📌']
 
 export default function Categories() {
   const [kind, setKind] = useState('egreso')
@@ -19,7 +13,7 @@ export default function Categories() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(null)
-  const [adding, setAdding] = useState(null) // null | 'root' | id del padre
+  const [adding, setAdding] = useState(null)
 
   async function load() {
     setLoading(true); setError('')
@@ -57,11 +51,13 @@ export default function Categories() {
 
       {adding && (
         <Editor
-          parentId={adding === 'root' ? null : adding}
-          kind={kind}
+          esSub={adding !== 'root'}
           onSave={async (v) => {
             try {
-              await createCategory({ ...v, kind, parent_id: adding === 'root' ? null : adding })
+              await createCategory({
+                ...v, kind,
+                parent_id: adding === 'root' ? null : adding
+              })
               setAdding(null); load()
             } catch (e) { setError(e.message) }
           }}
@@ -147,7 +143,7 @@ function Row({ cat, isParent, editing, setEditing, onSaved, onError, onAddChild 
   )
 }
 
-function Editor({ initial, parentId, onSave, onCancel }) {
+function Editor({ initial, esSub, onSave, onCancel }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [emoji, setEmoji] = useState(initial?.emoji ?? '📌')
 
@@ -155,15 +151,27 @@ function Editor({ initial, parentId, onSave, onCancel }) {
     <div className="card stack">
       <div>
         <label htmlFor="cname">
-          {parentId ? 'Nombre de la subcategoría' : 'Nombre'}
+          {esSub ? 'Nombre de la subcategoría' : 'Nombre'}
         </label>
         <input id="cname" value={name} onChange={e => setName(e.target.value)} />
       </div>
 
       <div>
-        <label>Ícono</label>
-        <div className="row" style={{ flexWrap: 'wrap', gap: 5 }}>
-          {EMOJIS.map(e => (
+        <label htmlFor="cemoji">Ícono</label>
+        <div className="row" style={{ gap: 8 }}>
+          <input
+            id="cemoji"
+            value={emoji}
+            onChange={e => setEmoji(e.target.value.trim())}
+            style={{ width: 70, fontSize: 22, textAlign: 'center', padding: '8px' }}
+          />
+          <span className="faint grow" style={{ fontSize: 12 }}>
+            Toca 🌐 en el teclado y elige el que quieras.
+          </span>
+        </div>
+
+        <div className="row" style={{ flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+          {RAPIDOS.map(e => (
             <button
               key={e} type="button" className="btn"
               style={{
@@ -182,7 +190,7 @@ function Editor({ initial, parentId, onSave, onCancel }) {
         <button className="btn btn-ghost grow" onClick={onCancel}>Cancelar</button>
         <button
           className="btn btn-primary grow"
-          onClick={() => name.trim() && onSave({ name, emoji, color: '#8b8b93' })}
+          onClick={() => name.trim() && onSave({ name, emoji: emoji || '📌', color: '#8b8b93' })}
         >
           Guardar
         </button>
