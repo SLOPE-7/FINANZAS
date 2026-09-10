@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabase.js'
 
 const TABS = [
   { to: '/',            ico: '🏠', label: 'Inicio' },
-  { to: '/movimientos', ico: '📲', label: 'Movimientos' },
+  { to: '/movimientos', ico: '💵', label: 'Movimientos' },
   { to: '/pagos',       ico: '📅', label: 'Pagos' },
   { to: '/cuentas',     ico: '💳', label: 'Cuentas' },
+  { to: '/recibo',      ico: '🧾', label: 'Recibo' },
   { to: '/ajustes',     ico: '⚙️', label: 'Ajustes' }
 ]
 
