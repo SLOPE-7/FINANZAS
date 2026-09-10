@@ -256,3 +256,43 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: -0.02em;
   margin-bottom: 4px;
 }
+
+/* ---------- Impresión ---------- */
+/* El comprobante se imprime en blanco y negro: en papel, el fondo
+   oscuro se vería como una mancha de tinta. */
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .topbar, .nav, .no-print {
+    display: none !important;
+  }
+
+  .shell {
+    padding-bottom: 0;
+  }
+
+  .page {
+    padding: 0;
+  }
+
+  #comprobante {
+    background: #fff;
+    border: 1px solid #999;
+    color: #000;
+  }
+
+  #comprobante .faint,
+  #comprobante .muted,
+  #comprobante .figure-label {
+    color: #555 !important;
+  }
+
+  #comprobante .pos,
+  #comprobante .neg {
+    color: #000 !important;
+  }
+}
