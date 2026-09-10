@@ -8,6 +8,7 @@ import Accounts from './pages/Accounts.jsx'
 import Transactions from './pages/Transactions.jsx'
 import Payments from './pages/Payments.jsx'
 import Categories from './pages/Categories.jsx'
+import BlankReceipt from './pages/BlankReceipt.jsx'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/movimientos" element={<Transactions />} />
         <Route path="/pagos" element={<Payments />} />
         <Route path="/cuentas" element={<Accounts />} />
+        <Route path="/recibo" element={<BlankReceipt />} />
         <Route path="/ajustes" element={<Categories />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
