@@ -16,17 +16,24 @@ function horaActual() {
   return `${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-// Número corto basado en fecha y hora. Suficiente para referirse
-// al recibo; no es correlativo fiscal.
+// Número corto basado en la fecha. Sirve para referirse al recibo;
+// no es correlativo fiscal.
 function referencia(fecha) {
   const base = (fecha ?? todayISO()).replace(/-/g, '').slice(2)
   const azar = Math.random().toString(36).slice(2, 6).toUpperCase()
   return `${base}-${azar}`
 }
 
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 const TIPOS = [
-  { value: 'recibi', label: 'Recibí dinero', titulo: 'RECIBO DE DINERO',    campo: 'Recibí de' },
-  { value: 'pague',  label: 'Pagué',         titulo: 'CONSTANCIA DE PAGO',  campo: 'Pagué a' }
+  { value: 'recibi', label: 'Recibí dinero', titulo: 'RECIBO DE DINERO',   campo: 'Recibí de' },
+  { value: 'pague',  label: 'Pagué',         titulo: 'CONSTANCIA DE PAGO', campo: 'Pagué a' }
 ]
 
 export default function BlankReceipt() {
@@ -76,14 +83,16 @@ export default function BlankReceipt() {
 
     const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recibo ${ref}</title>
 <style>
   @page { size: letter; margin: 20mm; }
   * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; color: #111; margin: 0; line-height: 1.5; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #111;
+         margin: 0; padding: 16px; line-height: 1.5; background: #fff; }
   .hoja { max-width: 170mm; margin: 0 auto; }
   .cab { border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 22px;
-         display: flex; justify-content: space-between; align-items: flex-end; }
+         display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
   h1 { font-size: 20px; margin: 0; letter-spacing: 1px; }
   .ref { font-size: 12px; color: #555; text-align: right; }
   .campo { margin-bottom: 10px; font-size: 14px; }
@@ -101,6 +110,23 @@ export default function BlankReceipt() {
                  padding-top: 6px; font-size: 12px; color: #555; }
   .pie { margin-top: 28px; font-size: 10px; color: #777;
          border-top: 1px solid #ddd; padding-top: 8px; }
+
+  /* Barra propia: en iOS el diálogo de impresión no siempre aparece
+     solo, y sin botones la ventana queda sin salida. */
+  .barra { position: fixed; bottom: 0; left: 0; right: 0;
+           background: #f2f2f2; border-top: 1px solid #ccc;
+           padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+           display: flex; gap: 10px;
+           font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  .barra button { flex: 1; padding: 13px; font-size: 15px; border-radius: 9px;
+                  border: 1px solid #bbb; background: #fff; color: #111; }
+  .barra .primario { background: #111; color: #fff; border-color: #111; }
+  .espacio { height: 90px; }
+
+  @media print {
+    .barra, .espacio { display: none !important; }
+    body { padding: 0; }
+  }
 </style></head>
 <body><div class="hoja">
   <div class="cab">
@@ -119,7 +145,11 @@ export default function BlankReceipt() {
     autorizado por el SAR.
   </div>
 </div>
-<script>window.onload = function(){ window.print(); };</script>
+<div class="espacio"></div>
+<div class="barra">
+  <button onclick="window.close()">Volver</button>
+  <button class="primario" onclick="window.print()">Guardar PDF</button>
+</div>
 </body></html>`
 
     const w = window.open('', '_blank')
@@ -143,15 +173,16 @@ export default function BlankReceipt() {
           </button>
         </div>
 
-        <Papel d={d} tipo={tipo} total={total} ref_={ref} aNum={aNum} />
+        <Papel d={d} tipo={tipo} total={total} numero={ref} aNum={aNum} />
 
         <button className="btn btn-primary btn-block" onClick={generarPDF}>
           Generar PDF
         </button>
 
         <p className="faint" style={{ fontSize: 12 }}>
-          Se abre el diálogo de impresión. Elige Opciones → PDF para guardarlo,
-          o Compartir para mandarlo por WhatsApp.
+          Se abre en una pestaña nueva con botones para guardarlo o volver.
+          En el diálogo de impresión, elige Opciones → PDF, o Compartir
+          para mandarlo por WhatsApp.
         </p>
       </div>
     )
@@ -258,7 +289,7 @@ export default function BlankReceipt() {
   )
 }
 
-function Papel({ d, tipo, total, ref_, aNum }) {
+function Papel({ d, tipo, total, numero, aNum }) {
   return (
     <div style={{
       background: '#fff', color: '#111', padding: 20, borderRadius: 8,
@@ -270,7 +301,7 @@ function Papel({ d, tipo, total, ref_, aNum }) {
       }}>
         <span style={{ fontSize: 16, fontWeight: 'bold', letterSpacing: 1 }}>{tipo.titulo}</span>
         <span style={{ fontSize: 11, color: '#555', textAlign: 'right' }}>
-          No. {ref_}<br />
+          No. {numero}<br />
           {fechaLarga(d.fecha)}{d.hora ? ` · ${d.hora}` : ''}
         </span>
       </div>
@@ -287,10 +318,12 @@ function Papel({ d, tipo, total, ref_, aNum }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr>
-            <th style={{ textAlign: 'left', borderBottom: '1px solid #111', padding: '4px 2px', fontSize: 11 }}>
+            <th style={{ textAlign: 'left', borderBottom: '1px solid #111',
+                         padding: '4px 2px', fontSize: 11 }}>
               DETALLE
             </th>
-            <th style={{ textAlign: 'right', borderBottom: '1px solid #111', padding: '4px 2px', fontSize: 11 }}>
+            <th style={{ textAlign: 'right', borderBottom: '1px solid #111',
+                         padding: '4px 2px', fontSize: 11 }}>
               MONTO
             </th>
           </tr>
@@ -299,13 +332,15 @@ function Papel({ d, tipo, total, ref_, aNum }) {
           {d.lineas.filter(l => l.detalle || l.monto).map((l, i) => (
             <tr key={i}>
               <td style={{ padding: '6px 2px', borderBottom: '1px solid #eee' }}>{l.detalle}</td>
-              <td style={{ padding: '6px 2px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+              <td style={{ padding: '6px 2px', borderBottom: '1px solid #eee',
+                           textAlign: 'right' }}>
                 {money(aNum(l.monto))}
               </td>
             </tr>
           ))}
           <tr>
-            <td style={{ borderTop: '2px solid #111', paddingTop: 8, fontWeight: 'bold', fontSize: 15 }}>
+            <td style={{ borderTop: '2px solid #111', paddingTop: 8,
+                         fontWeight: 'bold', fontSize: 15 }}>
               TOTAL
             </td>
             <td style={{ borderTop: '2px solid #111', paddingTop: 8, fontWeight: 'bold',
@@ -334,11 +369,4 @@ function Papel({ d, tipo, total, ref_, aNum }) {
       </div>
     </div>
   )
-}
-
-function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
 }
