@@ -16,19 +16,10 @@ function horaActual() {
   return `${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-// Número corto basado en la fecha. Sirve para referirse al recibo;
-// no es correlativo fiscal.
 function referencia(fecha) {
   const base = (fecha ?? todayISO()).replace(/-/g, '').slice(2)
   const azar = Math.random().toString(36).slice(2, 6).toUpperCase()
   return `${base}-${azar}`
-}
-
-function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
 }
 
 const TIPOS = [
@@ -39,6 +30,7 @@ const TIPOS = [
 export default function BlankReceipt() {
   const [ref] = useState(() => referencia(todayISO()))
   const [vista, setVista] = useState(false)
+  const [generando, setGenerando] = useState(false)
   const [d, setD] = useState({
     tipo: 'recibi',
     persona: '',
@@ -75,90 +67,159 @@ export default function BlankReceipt() {
     setVista(false)
   }
 
-  function generarPDF() {
-    const filas = d.lineas
-      .filter(l => l.detalle || l.monto)
-      .map(l => `<tr><td>${esc(l.detalle)}</td><td class="der">${money(aNum(l.monto))}</td></tr>`)
-      .join('')
+  // Dibuja el recibo en un canvas y lo entrega como PNG. Se hace a mano
+  // en vez de con una librería para no meter dependencias, y porque el
+  // diseño es simple: texto, líneas y una tabla.
+  async function generarImagen() {
+    setGenerando(true)
+    try {
+      const filas = d.lineas.filter(l => l.detalle || l.monto)
 
-    const html = `<!doctype html>
-<html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Recibo ${ref}</title>
-<style>
-  @page { size: letter; margin: 20mm; }
-  * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; color: #111;
-         margin: 0; padding: 16px; line-height: 1.5; background: #fff; }
-  .hoja { max-width: 170mm; margin: 0 auto; }
-  .cab { border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 22px;
-         display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
-  h1 { font-size: 20px; margin: 0; letter-spacing: 1px; }
-  .ref { font-size: 12px; color: #555; text-align: right; }
-  .campo { margin-bottom: 10px; font-size: 14px; }
-  .campo span { display: inline-block; min-width: 110px; color: #555; }
-  .campo b { border-bottom: 1px solid #ccc; padding: 0 4px; }
-  table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: 14px; }
-  th { text-align: left; border-bottom: 1px solid #111; padding: 6px 4px; font-size: 12px;
-       text-transform: uppercase; letter-spacing: .5px; }
-  td { padding: 7px 4px; border-bottom: 1px solid #eee; }
-  .der { text-align: right; }
-  .total td { border-top: 2px solid #111; border-bottom: none;
-              font-size: 17px; font-weight: bold; padding-top: 10px; }
-  .firma { margin-top: 55px; display: flex; justify-content: flex-end; }
-  .linea-firma { width: 62mm; border-top: 1px solid #111; text-align: center;
-                 padding-top: 6px; font-size: 12px; color: #555; }
-  .pie { margin-top: 28px; font-size: 10px; color: #777;
-         border-top: 1px solid #ddd; padding-top: 8px; }
+      const ESCALA = 2            // el doble de resolución, para que no se vea pixelado
+      const ANCHO = 720
+      const MARGEN = 48
+      const ALTO_FILA = 34
+      const ALTO = 300 + filas.length * ALTO_FILA + 180
 
-  /* Barra propia: en iOS el diálogo de impresión no siempre aparece
-     solo, y sin botones la ventana queda sin salida. */
-  .barra { position: fixed; bottom: 0; left: 0; right: 0;
-           background: #f2f2f2; border-top: 1px solid #ccc;
-           padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-           display: flex; gap: 10px;
-           font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-  .barra button { flex: 1; padding: 13px; font-size: 15px; border-radius: 9px;
-                  border: 1px solid #bbb; background: #fff; color: #111; }
-  .barra .primario { background: #111; color: #fff; border-color: #111; }
-  .espacio { height: 90px; }
+      const canvas = document.createElement('canvas')
+      canvas.width = ANCHO * ESCALA
+      canvas.height = ALTO * ESCALA
+      const c = canvas.getContext('2d')
+      c.scale(ESCALA, ESCALA)
 
-  @media print {
-    .barra, .espacio { display: none !important; }
-    body { padding: 0; }
-  }
-</style></head>
-<body><div class="hoja">
-  <div class="cab">
-    <h1>${tipo.titulo}</h1>
-    <div class="ref">No. ${ref}<br>${fechaLarga(d.fecha)}${d.hora ? ` · ${esc(d.hora)}` : ''}</div>
-  </div>
-  <div class="campo"><span>${tipo.campo}:</span> <b>${esc(d.persona) || '&nbsp;'.repeat(40)}</b></div>
-  <div class="campo"><span>Por concepto de:</span> <b>${esc(d.motivo) || '&nbsp;'.repeat(40)}</b></div>
-  <table>
-    <thead><tr><th>Detalle</th><th class="der">Monto</th></tr></thead>
-    <tbody>${filas}<tr class="total"><td>TOTAL</td><td class="der">${money(total)}</td></tr></tbody>
-  </table>
-  <div class="firma"><div class="linea-firma">Firma</div></div>
-  <div class="pie">
-    Documento de control personal. No constituye factura ni documento fiscal
-    autorizado por el SAR.
-  </div>
-</div>
-<div class="espacio"></div>
-<div class="barra">
-  <button onclick="window.close()">Volver</button>
-  <button class="primario" onclick="window.print()">Guardar PDF</button>
-</div>
-</body></html>`
+      const serif = 'Georgia, "Times New Roman", serif'
+      const der = ANCHO - MARGEN
 
-    const w = window.open('', '_blank')
-    if (!w) {
-      alert('El navegador bloqueó la ventana. Permite ventanas emergentes e inténtalo de nuevo.')
-      return
+      c.fillStyle = '#ffffff'
+      c.fillRect(0, 0, ANCHO, ALTO)
+      c.fillStyle = '#111111'
+      c.textBaseline = 'alphabetic'
+
+      let y = 62
+
+      // Encabezado
+      c.font = `bold 24px ${serif}`
+      c.textAlign = 'left'
+      c.fillText(tipo.titulo, MARGEN, y)
+
+      c.font = `13px ${serif}`
+      c.fillStyle = '#555555'
+      c.textAlign = 'right'
+      c.fillText(`No. ${ref}`, der, y - 16)
+      c.fillText(
+        `${fechaLarga(d.fecha)}${d.hora ? ` · ${d.hora}` : ''}`,
+        der, y + 2
+      )
+
+      y += 16
+      c.strokeStyle = '#111111'
+      c.lineWidth = 2
+      c.beginPath(); c.moveTo(MARGEN, y); c.lineTo(der, y); c.stroke()
+
+      // Datos
+      y += 40
+      c.textAlign = 'left'
+      c.font = `15px ${serif}`
+      c.fillStyle = '#555555'
+      c.fillText(`${tipo.campo}:`, MARGEN, y)
+      c.font = `bold 17px ${serif}`
+      c.fillStyle = '#111111'
+      c.fillText(d.persona || '—', MARGEN + 130, y)
+
+      y += 32
+      c.font = `15px ${serif}`
+      c.fillStyle = '#555555'
+      c.fillText('Por concepto de:', MARGEN, y)
+      c.font = `bold 17px ${serif}`
+      c.fillStyle = '#111111'
+      c.fillText(d.motivo || '—', MARGEN + 130, y)
+
+      // Tabla
+      y += 46
+      c.font = `bold 12px ${serif}`
+      c.fillStyle = '#111111'
+      c.textAlign = 'left'
+      c.fillText('DETALLE', MARGEN, y)
+      c.textAlign = 'right'
+      c.fillText('MONTO', der, y)
+
+      y += 8
+      c.lineWidth = 1.5
+      c.beginPath(); c.moveTo(MARGEN, y); c.lineTo(der, y); c.stroke()
+
+      c.font = `15px ${serif}`
+      for (const l of filas) {
+        y += ALTO_FILA
+        c.textAlign = 'left'
+        c.fillStyle = '#111111'
+        c.fillText(recortar(c, l.detalle, ANCHO - MARGEN * 2 - 150), MARGEN, y - 8)
+        c.textAlign = 'right'
+        c.fillText(money(aNum(l.monto)), der, y - 8)
+
+        c.strokeStyle = '#eeeeee'
+        c.lineWidth = 1
+        c.beginPath(); c.moveTo(MARGEN, y); c.lineTo(der, y); c.stroke()
+      }
+
+      // Total
+      y += 6
+      c.strokeStyle = '#111111'
+      c.lineWidth = 2
+      c.beginPath(); c.moveTo(MARGEN, y); c.lineTo(der, y); c.stroke()
+
+      y += 30
+      c.font = `bold 19px ${serif}`
+      c.fillStyle = '#111111'
+      c.textAlign = 'left'
+      c.fillText('TOTAL', MARGEN, y)
+      c.textAlign = 'right'
+      c.fillText(money(total), der, y)
+
+      // Firma
+      y += 92
+      c.strokeStyle = '#111111'
+      c.lineWidth = 1
+      c.beginPath(); c.moveTo(der - 210, y); c.lineTo(der, y); c.stroke()
+      y += 20
+      c.font = `13px ${serif}`
+      c.fillStyle = '#555555'
+      c.textAlign = 'center'
+      c.fillText('Firma', der - 105, y)
+
+      // Pie
+      y += 40
+      c.strokeStyle = '#dddddd'
+      c.beginPath(); c.moveTo(MARGEN, y); c.lineTo(der, y); c.stroke()
+      y += 20
+      c.font = `11px ${serif}`
+      c.fillStyle = '#777777'
+      c.textAlign = 'left'
+      c.fillText('Documento de control personal. No constituye factura ni', MARGEN, y)
+      c.fillText('documento fiscal autorizado por el SAR.', MARGEN, y + 15)
+
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'))
+      if (!blob) throw new Error('No se pudo generar la imagen')
+
+      const archivo = new File([blob], `recibo-${ref}.png`, { type: 'image/png' })
+
+      // En iPhone lo mejor es el menú de compartir: permite mandarlo
+      // por WhatsApp o guardarlo en Fotos con un toque.
+      if (navigator.canShare?.({ files: [archivo] })) {
+        await navigator.share({ files: [archivo] })
+      } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `recibo-${ref}.png`
+        a.click()
+        setTimeout(() => URL.revokeObjectURL(url), 2000)
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') {
+        alert('No se pudo generar la imagen: ' + (e?.message ?? ''))
+      }
     }
-    w.document.write(html)
-    w.document.close()
+    setGenerando(false)
   }
 
   if (vista) {
@@ -175,14 +236,13 @@ export default function BlankReceipt() {
 
         <Papel d={d} tipo={tipo} total={total} numero={ref} aNum={aNum} />
 
-        <button className="btn btn-primary btn-block" onClick={generarPDF}>
-          Generar PDF
+        <button className="btn btn-primary btn-block" onClick={generarImagen} disabled={generando}>
+          {generando ? 'Generando…' : 'Guardar como imagen'}
         </button>
 
         <p className="faint" style={{ fontSize: 12 }}>
-          Se abre en una pestaña nueva con botones para guardarlo o volver.
-          En el diálogo de impresión, elige Opciones → PDF, o Compartir
-          para mandarlo por WhatsApp.
+          Se abre el menú de compartir: puedes mandarlo por WhatsApp
+          o guardarlo en Fotos.
         </p>
       </div>
     )
@@ -287,6 +347,16 @@ export default function BlankReceipt() {
       </p>
     </div>
   )
+}
+
+// Corta el texto con puntos suspensivos si no cabe en la columna.
+function recortar(ctx, texto, maxAncho) {
+  let t = String(texto ?? '')
+  if (ctx.measureText(t).width <= maxAncho) return t
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxAncho) {
+    t = t.slice(0, -1)
+  }
+  return t + '…'
 }
 
 function Papel({ d, tipo, total, numero, aNum }) {
