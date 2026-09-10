@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { money, shortDate, todayISO } from '../lib/format.js'
 import { listTransactions, monthTotals, deleteTransaction } from '../lib/transactions.js'
 import TransactionForm from '../components/TransactionForm.jsx'
+import Receipt from '../components/Receipt.jsx'
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
                'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -12,6 +13,7 @@ export default function Transactions() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(null)
+  const [receipt, setReceipt] = useState(null)
 
   async function load() {
     setLoading(true); setError('')
@@ -32,6 +34,10 @@ export default function Transactions() {
     setMonth(`${d.getFullYear()}-${p(d.getMonth() + 1)}-01`)
   }
 
+  if (receipt) {
+    return <Receipt tx={receipt} onClose={() => setReceipt(null)} />
+  }
+
   if (editing) {
     return (
       <TransactionForm
@@ -48,7 +54,6 @@ export default function Transactions() {
 
   return (
     <div className="page stack">
-      {/* Lo primero de la pantalla: registrar. Es lo que más se usa. */}
       <button
         className="btn btn-primary btn-block"
         style={{ padding: '15px', fontSize: 16 }}
@@ -102,6 +107,7 @@ export default function Transactions() {
                   key={t.id}
                   tx={t}
                   onEdit={() => setEditing(t)}
+                  onReceipt={() => setReceipt(t)}
                   onDelete={async () => {
                     if (!confirm('¿Borrar este movimiento?')) return
                     try { await deleteTransaction(t.id); load() }
@@ -117,7 +123,7 @@ export default function Transactions() {
   )
 }
 
-function Row({ tx: t, onEdit, onDelete }) {
+function Row({ tx: t, onEdit, onDelete, onReceipt }) {
   const [open, setOpen] = useState(false)
 
   let icono = t.category?.emoji ?? '📌'
@@ -150,24 +156,31 @@ function Row({ tx: t, onEdit, onDelete }) {
       </button>
 
       {open && (
-        <div
-          className="row"
-          style={{ padding: '10px 16px', gap: 8, borderBottom: '1px solid var(--border)' }}
-        >
+        <>
           {t.note && (
-            <span className="faint grow" style={{ fontSize: 12 }}>{t.note}</span>
+            <div style={{ padding: '8px 16px 0' }}>
+              <span className="faint" style={{ fontSize: 12 }}>{t.note}</span>
+            </div>
           )}
-          <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onEdit}>
-            Editar
-          </button>
-          <button
-            className="btn btn-ghost neg"
-            style={{ fontSize: 13, marginLeft: t.note ? 0 : 'auto' }}
-            onClick={onDelete}
+          <div
+            className="row"
+            style={{ padding: '10px 16px', gap: 8, borderBottom: '1px solid var(--border)' }}
           >
-            Borrar
-          </button>
-        </div>
+            <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onReceipt}>
+              Comprobante
+            </button>
+            <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onEdit}>
+              Editar
+            </button>
+            <button
+              className="btn btn-ghost neg"
+              style={{ fontSize: 13, marginLeft: 'auto' }}
+              onClick={onDelete}
+            >
+              Borrar
+            </button>
+          </div>
+        </>
       )}
     </>
   )
