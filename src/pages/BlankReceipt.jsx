@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { money, todayISO } from '../lib/format.js'
+import { listAccounts } from '../lib/accounts.js'
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
                'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -22,23 +23,61 @@ function referencia(fecha) {
   return `${base}-${azar}`
 }
 
+// Cada tipo decide qué campos extra se piden y cómo se titula el papel.
 const TIPOS = [
-  { value: 'recibi', label: 'Recibí dinero', titulo: 'RECIBO DE DINERO',   campo: 'Recibí de' },
-  { value: 'pague',  label: 'Pagué',         titulo: 'CONSTANCIA DE PAGO', campo: 'Pagué a' }
+  {
+    value: 'recibi',
+    label: 'Recibí',
+    titulo: 'RECIBO DE DINERO',
+    campo: 'Recibí de',
+    leyenda: null
+  },
+  {
+    value: 'pague',
+    label: 'Pagué',
+    titulo: 'CONSTANCIA DE PAGO',
+    campo: 'Pagué a',
+    leyenda: null
+  },
+  {
+    value: 'presté',
+    label: 'Presté',
+    titulo: 'CONSTANCIA DE PRÉSTAMO',
+    campo: 'Presté a',
+    prestamo: true,
+    leyenda: 'El deudor reconoce haber recibido la cantidad indicada y se compromete a devolverla en las condiciones señaladas.'
+  },
+  {
+    value: 'custodia',
+    label: 'Guardo',
+    titulo: 'CONSTANCIA DE DINERO EN CUSTODIA',
+    campo: 'Dinero de',
+    custodia: true,
+    leyenda: 'El dinero descrito pertenece a la persona indicada y se mantiene bajo resguardo, disponible para su entrega.'
+  }
 ]
 
 export default function BlankReceipt() {
   const [ref] = useState(() => referencia(todayISO()))
   const [vista, setVista] = useState(false)
   const [generando, setGenerando] = useState(false)
+  const [cuentas, setCuentas] = useState([])
+
   const [d, setD] = useState({
     tipo: 'recibi',
     persona: '',
     motivo: '',
     fecha: todayISO(),
     hora: horaActual(),
+    vence: '',
+    interes: '',
+    resguardo: '',
     lineas: [{ detalle: '', monto: '' }]
   })
+
+  useEffect(() => {
+    listAccounts().then(setCuentas).catch(() => setCuentas([]))
+  }, [])
 
   const set = (k) => (e) => setD(p => ({ ...p, [k]: e.target.value }))
   const tipo = TIPOS.find(t => t.value === d.tipo)
@@ -57,29 +96,43 @@ export default function BlankReceipt() {
   const aNum = (x) => Number(String(x ?? '').replace(/[\s,]/g, '')) || 0
   const total = d.lineas.reduce((s, l) => s + aNum(l.monto), 0)
 
+  // Líneas de datos que van bajo el encabezado, ya resueltas
+  // según el tipo. Se usan igual en la vista previa y en la imagen.
+  function camposExtra() {
+    const out = []
+    if (tipo.prestamo) {
+      if (d.vence) out.push(['Fecha acordada de pago', fechaLarga(d.vence)])
+      if (d.interes.trim()) out.push(['Interés pactado', d.interes.trim()])
+    }
+    if (tipo.custodia && d.resguardo.trim()) {
+      out.push(['Resguardado en', d.resguardo.trim()])
+    }
+    return out
+  }
+
   function limpiar() {
     if (!confirm('¿Vaciar el recibo?')) return
     setD({
       tipo: d.tipo, persona: '', motivo: '',
       fecha: todayISO(), hora: horaActual(),
+      vence: '', interes: '', resguardo: '',
       lineas: [{ detalle: '', monto: '' }]
     })
     setVista(false)
   }
 
-  // Dibuja el recibo en un canvas y lo entrega como PNG. Se hace a mano
-  // en vez de con una librería para no meter dependencias, y porque el
-  // diseño es simple: texto, líneas y una tabla.
   async function generarImagen() {
     setGenerando(true)
     try {
       const filas = d.lineas.filter(l => l.detalle || l.monto)
+      const extras = camposExtra()
 
-      const ESCALA = 2            // el doble de resolución, para que no se vea pixelado
+      const ESCALA = 2
       const ANCHO = 720
       const MARGEN = 48
       const ALTO_FILA = 34
-      const ALTO = 300 + filas.length * ALTO_FILA + 180
+      const altoLeyenda = tipo.leyenda ? 60 : 0
+      const ALTO = 300 + extras.length * 30 + filas.length * ALTO_FILA + altoLeyenda + 180
 
       const canvas = document.createElement('canvas')
       canvas.width = ANCHO * ESCALA
@@ -97,8 +150,7 @@ export default function BlankReceipt() {
 
       let y = 62
 
-      // Encabezado
-      c.font = `bold 24px ${serif}`
+      c.font = `bold 22px ${serif}`
       c.textAlign = 'left'
       c.fillText(tipo.titulo, MARGEN, y)
 
@@ -106,17 +158,13 @@ export default function BlankReceipt() {
       c.fillStyle = '#555555'
       c.textAlign = 'right'
       c.fillText(`No. ${ref}`, der, y - 16)
-      c.fillText(
-        `${fechaLarga(d.fecha)}${d.hora ? ` · ${d.hora}` : ''}`,
-        der, y + 2
-      )
+      c.fillText(`${fechaLarga(d.fecha)}${d.hora ? ` · ${d.hora}` : ''}`, der, y + 2)
 
       y += 16
       c.strokeStyle = '#111111'
       c.lineWidth = 2
       c.beginPath(); c.moveTo(MARGEN, y); c.lineTo(der, y); c.stroke()
 
-      // Datos
       y += 40
       c.textAlign = 'left'
       c.font = `15px ${serif}`
@@ -124,17 +172,26 @@ export default function BlankReceipt() {
       c.fillText(`${tipo.campo}:`, MARGEN, y)
       c.font = `bold 17px ${serif}`
       c.fillStyle = '#111111'
-      c.fillText(d.persona || '—', MARGEN + 130, y)
+      c.fillText(d.persona || '—', MARGEN + 160, y)
 
-      y += 32
+      y += 30
       c.font = `15px ${serif}`
       c.fillStyle = '#555555'
       c.fillText('Por concepto de:', MARGEN, y)
       c.font = `bold 17px ${serif}`
       c.fillStyle = '#111111'
-      c.fillText(d.motivo || '—', MARGEN + 130, y)
+      c.fillText(d.motivo || '—', MARGEN + 160, y)
 
-      // Tabla
+      for (const [etiqueta, valor] of extras) {
+        y += 30
+        c.font = `15px ${serif}`
+        c.fillStyle = '#555555'
+        c.fillText(`${etiqueta}:`, MARGEN, y)
+        c.font = `bold 17px ${serif}`
+        c.fillStyle = '#111111'
+        c.fillText(valor, MARGEN + 160, y)
+      }
+
       y += 46
       c.font = `bold 12px ${serif}`
       c.fillStyle = '#111111'
@@ -161,7 +218,6 @@ export default function BlankReceipt() {
         c.beginPath(); c.moveTo(MARGEN, y); c.lineTo(der, y); c.stroke()
       }
 
-      // Total
       y += 6
       c.strokeStyle = '#111111'
       c.lineWidth = 2
@@ -175,8 +231,18 @@ export default function BlankReceipt() {
       c.textAlign = 'right'
       c.fillText(money(total), der, y)
 
-      // Firma
-      y += 92
+      if (tipo.leyenda) {
+        y += 40
+        c.font = `italic 13px ${serif}`
+        c.fillStyle = '#333333'
+        c.textAlign = 'left'
+        for (const linea of envolver(c, tipo.leyenda, ANCHO - MARGEN * 2)) {
+          c.fillText(linea, MARGEN, y)
+          y += 19
+        }
+      }
+
+      y += 70
       c.strokeStyle = '#111111'
       c.lineWidth = 1
       c.beginPath(); c.moveTo(der - 210, y); c.lineTo(der, y); c.stroke()
@@ -186,7 +252,6 @@ export default function BlankReceipt() {
       c.textAlign = 'center'
       c.fillText('Firma', der - 105, y)
 
-      // Pie
       y += 40
       c.strokeStyle = '#dddddd'
       c.beginPath(); c.moveTo(MARGEN, y); c.lineTo(der, y); c.stroke()
@@ -202,8 +267,6 @@ export default function BlankReceipt() {
 
       const archivo = new File([blob], `recibo-${ref}.png`, { type: 'image/png' })
 
-      // En iPhone lo mejor es el menú de compartir: permite mandarlo
-      // por WhatsApp o guardarlo en Fotos con un toque.
       if (navigator.canShare?.({ files: [archivo] })) {
         await navigator.share({ files: [archivo] })
       } else {
@@ -234,7 +297,10 @@ export default function BlankReceipt() {
           </button>
         </div>
 
-        <Papel d={d} tipo={tipo} total={total} numero={ref} aNum={aNum} />
+        <Papel
+          d={d} tipo={tipo} total={total} numero={ref}
+          aNum={aNum} extras={camposExtra()}
+        />
 
         <button className="btn btn-primary btn-block" onClick={generarImagen} disabled={generando}>
           {generando ? 'Generando…' : 'Guardar como imagen'}
@@ -250,13 +316,13 @@ export default function BlankReceipt() {
 
   return (
     <div className="page stack">
-      <div className="row" style={{ gap: 6 }}>
+      <div className="row" style={{ gap: 5, flexWrap: 'wrap' }}>
         {TIPOS.map(t => (
           <button
             key={t.value}
             className="btn grow"
             style={{
-              fontSize: 13,
+              fontSize: 13, padding: '9px 4px', minWidth: 70,
               borderColor: d.tipo === t.value ? 'var(--text)' : 'var(--border)',
               color: d.tipo === t.value ? 'var(--text)' : 'var(--muted)'
             }}
@@ -280,7 +346,7 @@ export default function BlankReceipt() {
           <label htmlFor="motivo">Por concepto de</label>
           <input
             id="motivo" value={d.motivo} onChange={set('motivo')}
-            placeholder="Abono a préstamo"
+            placeholder={tipo.prestamo ? 'Préstamo personal' : 'Abono a préstamo'}
           />
         </div>
 
@@ -296,8 +362,47 @@ export default function BlankReceipt() {
         </div>
       </div>
 
+      {tipo.prestamo && (
+        <div className="card stack">
+          <span className="figure-label">Condiciones del préstamo</span>
+
+          <div>
+            <label htmlFor="vence">Fecha acordada de pago</label>
+            <input id="vence" type="date" value={d.vence} onChange={set('vence')} />
+          </div>
+
+          <div>
+            <label htmlFor="interes">Interés pactado</label>
+            <input
+              id="interes" value={d.interes} onChange={set('interes')}
+              placeholder="5% mensual, o Sin interés"
+            />
+          </div>
+        </div>
+      )}
+
+      {tipo.custodia && (
+        <div className="card stack">
+          <span className="figure-label">Resguardo</span>
+
+          <div>
+            <label htmlFor="resguardo">¿Dónde lo tienes?</label>
+            <input
+              id="resguardo" value={d.resguardo} onChange={set('resguardo')}
+              placeholder="Efectivo, BAC, …"
+              list="lista-cuentas"
+            />
+            <datalist id="lista-cuentas">
+              {cuentas.map(c => <option key={c.id} value={c.name} />)}
+            </datalist>
+          </div>
+        </div>
+      )}
+
       <div className="card stack">
-        <span className="figure-label">Detalle</span>
+        <span className="figure-label">
+          {tipo.custodia ? 'Entregas' : 'Detalle'}
+        </span>
 
         {d.lineas.map((l, i) => (
           <div key={i} className="row" style={{ gap: 8 }}>
@@ -305,7 +410,7 @@ export default function BlankReceipt() {
               <input
                 value={l.detalle}
                 onChange={e => setLinea(i, 'detalle', e.target.value)}
-                placeholder="Descripción"
+                placeholder={tipo.custodia ? 'Entrega del 12 de agosto' : 'Descripción'}
               />
             </div>
             <div style={{ width: 110 }}>
@@ -349,7 +454,6 @@ export default function BlankReceipt() {
   )
 }
 
-// Corta el texto con puntos suspensivos si no cabe en la columna.
 function recortar(ctx, texto, maxAncho) {
   let t = String(texto ?? '')
   if (ctx.measureText(t).width <= maxAncho) return t
@@ -359,7 +463,25 @@ function recortar(ctx, texto, maxAncho) {
   return t + '…'
 }
 
-function Papel({ d, tipo, total, numero, aNum }) {
+// Parte un párrafo en líneas que quepan en el ancho dado.
+function envolver(ctx, texto, maxAncho) {
+  const palabras = String(texto ?? '').split(' ')
+  const lineas = []
+  let actual = ''
+  for (const p of palabras) {
+    const prueba = actual ? `${actual} ${p}` : p
+    if (ctx.measureText(prueba).width > maxAncho && actual) {
+      lineas.push(actual)
+      actual = p
+    } else {
+      actual = prueba
+    }
+  }
+  if (actual) lineas.push(actual)
+  return lineas
+}
+
+function Papel({ d, tipo, total, numero, aNum, extras }) {
   return (
     <div style={{
       background: '#fff', color: '#111', padding: 20, borderRadius: 8,
@@ -369,7 +491,7 @@ function Papel({ d, tipo, total, numero, aNum }) {
         borderBottom: '2px solid #111', paddingBottom: 8, marginBottom: 16,
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12
       }}>
-        <span style={{ fontSize: 16, fontWeight: 'bold', letterSpacing: 1 }}>{tipo.titulo}</span>
+        <span style={{ fontSize: 15, fontWeight: 'bold', letterSpacing: 1 }}>{tipo.titulo}</span>
         <span style={{ fontSize: 11, color: '#555', textAlign: 'right' }}>
           No. {numero}<br />
           {fechaLarga(d.fecha)}{d.hora ? ` · ${d.hora}` : ''}
@@ -380,12 +502,19 @@ function Papel({ d, tipo, total, numero, aNum }) {
         <span style={{ color: '#555' }}>{tipo.campo}: </span>
         <b>{d.persona || '—'}</b>
       </div>
-      <div style={{ fontSize: 13, marginBottom: 16 }}>
+      <div style={{ fontSize: 13, marginBottom: 6 }}>
         <span style={{ color: '#555' }}>Por concepto de: </span>
         <b>{d.motivo || '—'}</b>
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      {extras.map(([etiqueta, valor], i) => (
+        <div key={i} style={{ fontSize: 13, marginBottom: 6 }}>
+          <span style={{ color: '#555' }}>{etiqueta}: </span>
+          <b>{valor}</b>
+        </div>
+      ))}
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 14 }}>
         <thead>
           <tr>
             <th style={{ textAlign: 'left', borderBottom: '1px solid #111',
@@ -420,6 +549,12 @@ function Papel({ d, tipo, total, numero, aNum }) {
           </tr>
         </tbody>
       </table>
+
+      {tipo.leyenda && (
+        <p style={{ fontSize: 12, fontStyle: 'italic', color: '#333', marginTop: 16 }}>
+          {tipo.leyenda}
+        </p>
+      )}
 
       <div style={{ marginTop: 40, display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{
