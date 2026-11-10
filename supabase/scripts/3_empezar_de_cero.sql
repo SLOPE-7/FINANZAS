@@ -2,12 +2,12 @@
 -- Borra todos los movimientos y pagos programados EXCEPTO los de las
 -- categorías indicadas (y sus subcategorías). Las cuentas y las
 -- categorías se conservan.
--- Pon los nombres EXACTOS en la línea marcada.
+-- Pon el inicio de cada nombre seguido de % en la línea marcada.
 -- Es todo o nada: si algo falla, no se borra nada.
 
 do $$
 declare
-  nombres text[] := array['Kenneth💙', 'Antonella🩷'];   -- ← nombres aquí
+  nombres text[] := array['Kenneth%', 'Antonella%'];   -- ← nombres aquí (% = lo que sigue, p. ej. el emoji)
   faltan text;
   n_tx int;
   n_pagos int;
@@ -23,7 +23,7 @@ begin
   select string_agg(n, ', ') into faltan
   from unnest(nombres) n
   where not exists (
-    select 1 from public.categories c where lower(trim(c.name)) = lower(trim(n))
+    select 1 from public.categories c where trim(c.name) ilike n
   );
   if faltan is not null then
     raise exception 'No encontré estas categorías: %. Revisa el nombre exacto (paso 2).', faltan;
@@ -31,7 +31,7 @@ begin
 
   create temp table _padre on commit drop as
     select id, user_id from public.categories
-    where lower(trim(name)) in (select lower(trim(n)) from unnest(nombres) n);
+    where trim(name) ilike any (nombres);
 
   -- Seguridad 3: solo se toca la cuenta de usuario dueña de esas categorías.
   select count(distinct user_id) into n_duenos from _padre;
