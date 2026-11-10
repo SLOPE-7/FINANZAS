@@ -1,12 +1,12 @@
 import { supabase } from './supabase.js'
-import { monthBounds } from './format.js'
+import { monthBounds, parseAmount, todayISO } from './format.js'
 
 const SELECT = `
   id, kind, amount, occurred_on, description, note,
   account_id, to_account_id, category_id,
   account:accounts!transactions_account_id_fkey (id, name, emoji),
   destino:accounts!transactions_to_account_id_fkey (id, name, emoji),
-  category:categories (id, name, emoji, color)
+  category:categories (id, name, emoji, color, parent_id)
 `
 
 export async function listTransactions({ month, accountId } = {}) {
@@ -24,6 +24,79 @@ export async function listTransactions({ month, accountId } = {}) {
 
   if (error) throw error
   return data ?? []
+}
+
+// Movimientos de una cuenta: los que salen de ella y las
+// transferencias que llegan. Más recientes primero.
+export async function listAccountTransactions(accountId, limit = 100) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(SELECT)
+    .or(`account_id.eq.${accountId},to_account_id.eq.${accountId}`)
+    .order('occurred_on', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+// Solo lo necesario para sumar por mes; sirve para la tendencia.
+export async function listTotalsRange(from, to) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('kind, amount, occurred_on')
+    .gte('occurred_on', from)
+    .lte('occurred_on', to)
+    .neq('kind', 'transferencia')
+  if (error) throw error
+  return data ?? []
+}
+
+// Conceptos usados antes, con su última categoría y cuenta: sirven para
+// autocompletar y para proponer la categoría al escribir el concepto.
+export async function recentDescriptions(limit = 400) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('description, kind, category_id, account_id')
+    .neq('description', '')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  const vistos = new Map()
+  for (const t of data ?? []) {
+    const k = `${t.kind}|${t.description.trim().toLowerCase()}`
+    if (!vistos.has(k)) vistos.set(k, t)
+  }
+  return [...vistos.values()]
+}
+
+// Exporta a CSV (se abre en Excel o Google Sheets). Usa ; como
+// separador porque Excel en español espera eso.
+export function toCSV(items) {
+  const TIPO = { ingreso: 'Ingreso', egreso: 'Gasto', transferencia: 'Transferencia' }
+  const q = (x) => `"${String(x ?? '').replace(/"/g, '""')}"`
+  const filas = [['Fecha', 'Tipo', 'Concepto', 'Categoría', 'Cuenta', 'Hacia', 'Monto', 'Nota']]
+  for (const t of items) {
+    const signo = t.kind === 'egreso' ? -1 : 1
+    filas.push([
+      t.occurred_on, TIPO[t.kind] ?? t.kind, t.description,
+      t.category?.name ?? '', t.account?.name ?? '', t.destino?.name ?? '',
+      (signo * Number(t.amount)).toFixed(2), t.note ?? ''
+    ])
+  }
+  return '\ufeff' + filas.map(f => f.map(q).join(';')).join('\r\n')
+}
+
+export function downloadFile(nombre, contenido, tipo = 'text/csv;charset=utf-8') {
+  const blob = new Blob([contenido], { type: tipo })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombre
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
 
 // Las transferencias quedan fuera de los totales a propósito:
@@ -53,6 +126,10 @@ export async function deleteTransaction(id) {
   if (error) throw error
 }
 
+export function exportName(month) {
+  return `movimientos-${(month || todayISO()).slice(0, 7)}.csv`
+}
+
 function clean(v) {
   const esTransferencia = v.kind === 'transferencia'
   return {
@@ -68,8 +145,9 @@ function clean(v) {
 }
 
 function toNumber(x) {
-  const n = Number(String(x ?? '').replace(/,/g, ''))
-  return Number.isFinite(n) ? n : 0
+  const n = parseAmount(x)
+  if (!(n > 0)) throw new Error('El monto tiene que ser un número mayor que cero')
+  return n
 }
 
 // Convierte los errores de Postgres en algo legible.

@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js'
-import { todayISO } from './format.js'
+import { todayISO, parseAmount, addDaysISO, addMonthsISO } from './format.js'
 
 // Con dos claves foráneas hacia accounts hay que nombrarlas
 // explícitamente o PostgREST no sabe cuál usar.
@@ -29,7 +29,7 @@ export async function listPending() {
   return data ?? []
 }
 
-export async function listHistory(limit = 30) {
+export async function listHistory(limit = 80) {
   const { data, error } = await supabase
     .from('scheduled_payments')
     .select(SELECT)
@@ -40,17 +40,57 @@ export async function listHistory(limit = 30) {
   return data ?? []
 }
 
+// Próxima fecha de un pago recurrente, o null si no se repite.
+export function nextOccurrence(dateISO, recurrence) {
+  switch (recurrence) {
+    case 'semanal':   return addDaysISO(dateISO, 7)
+    case 'quincenal': return addDaysISO(dateISO, 15)
+    case 'mensual':   return addMonthsISO(dateISO, 1)
+    case 'anual':     return addMonthsISO(dateISO, 12)
+    default:          return null
+  }
+}
+
+// Todas las fechas en que cae cada pago pendiente dentro de [desde, hasta].
+// Sirve para el calendario del centro de pagos.
+export function occurrencesBetween(pendientes, desde, hasta) {
+  const out = []
+  for (const p of pendientes) {
+    let fecha = p.due_date
+    let guard = 0
+    while (fecha && fecha <= hasta && guard++ < 400) {
+      if (fecha >= desde) out.push({ fecha, pago: p, primera: fecha === p.due_date })
+      fecha = nextOccurrence(fecha, p.recurrence)
+    }
+  }
+  return out.sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+// Cuánto hay que pagar en los próximos `hastaDias` días.
+// Los pagos recurrentes se proyectan: un pago semanal cae ~4 veces
+// en 30 días y antes solo se contaba una. Las fechas se comparan
+// como texto YYYY-MM-DD para no depender de la zona horaria.
 export function committed(pendientes, hastaDias = 30) {
-  const hoy = new Date(todayISO())
-  const limite = new Date(hoy)
-  limite.setDate(limite.getDate() + hastaDias)
+  const hoy = todayISO()
+  const limite = addDaysISO(hoy, hastaDias)
 
   let total = 0
   let vencido = 0
   for (const p of pendientes) {
-    const d = new Date(p.due_date)
-    if (d < hoy) { vencido += Number(p.amount); total += Number(p.amount) }
-    else if (d <= limite) total += Number(p.amount)
+    const monto = Number(p.amount) || 0
+    let fecha = p.due_date
+    if (!fecha) continue
+
+    if (fecha < hoy) { vencido += monto; total += monto }
+    else if (fecha <= limite) total += monto
+    else continue
+
+    // Repeticiones futuras dentro de la ventana. Las que ya pasaron
+    // no se suman: lo más probable es que solo falte marcarlas.
+    let guard = 0
+    while ((fecha = nextOccurrence(fecha, p.recurrence)) && fecha <= limite && guard++ < 60) {
+      if (fecha >= hoy) total += monto
+    }
   }
   return { total, vencido }
 }
@@ -75,7 +115,7 @@ export async function markPaid({ paymentId, accountId, paidOn, amount }) {
     p_payment_id: paymentId,
     p_account_id: accountId,
     p_paid_on: paidOn || todayISO(),
-    p_amount: amount ? Number(amount) : null
+    p_amount: montoReal(amount)
   })
   if (error) throw error
 }
@@ -104,6 +144,14 @@ function clean(v) {
 }
 
 function toNumber(x) {
-  const n = Number(String(x ?? '').replace(/,/g, ''))
-  return Number.isFinite(n) ? n : 0
+  const n = parseAmount(x)
+  if (!(n > 0)) throw new Error('El monto tiene que ser un número mayor que cero')
+  return n
+}
+
+// En "Marcar pagado" el monto es opcional: vacío = el de la cuota.
+// Antes, "1,500" se mandaba como NaN y se perdía en silencio.
+function montoReal(x) {
+  if (x === '' || x === null || x === undefined) return null
+  return toNumber(x)
 }

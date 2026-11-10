@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
-import { todayISO, money } from '../lib/format.js'
+import { todayISO, money, parseAmount, isExpression } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
 import { RECURRENCES, createPayment, updatePayment } from '../lib/payments.js'
 import CategorySelect from './CategorySelect.jsx'
+import Icon from './Icon.jsx'
 
-export default function PaymentForm({ payment, onDone, onCancel }) {
+export default function PaymentForm({ payment, defaults, onDone, onCancel }) {
+  const d0 = defaults ?? {}
   const [v, setV] = useState({
-    name: payment?.name ?? '',
+    name: payment?.name ?? d0.name ?? '',
     amount: payment?.amount ?? '',
-    due_date: payment?.due_date ?? todayISO(),
+    due_date: payment?.due_date ?? d0.due_date ?? todayISO(),
     recurrence: payment?.recurrence ?? 'mensual',
     category_id: payment?.category_id ?? '',
     account_id: payment?.account_id ?? '',
-    target_account_id: payment?.target_account_id ?? '',
+    target_account_id: payment?.target_account_id ?? d0.target_account_id ?? '',
     notify: payment?.notify ?? true
   })
   const [accounts, setAccounts] = useState([])
@@ -28,15 +30,17 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
 
   // Solo tiene sentido abonar a deudas o ahorros, no a la cuenta corriente.
   const destinos = accounts.filter(a =>
-    a.type === 'tarjeta' || a.type === 'ahorro'
+    a.type === 'tarjeta' || a.type === 'prestamo' || a.type === 'ahorro'
   )
 
   const destino = accounts.find(a => a.id === v.target_account_id)
-  const restante = destino ? Math.abs(Number(destino.balance)) : 0
+  const esDeuda = destino?.type === 'tarjeta' || destino?.type === 'prestamo'
+  const saldoDestino = destino ? Math.abs(Number(destino.balance)) : 0
 
   async function save() {
     if (!v.name.trim()) { setError('Ponle un nombre al pago'); return }
-    if (Number(v.amount) <= 0) { setError('El monto tiene que ser mayor que cero'); return }
+    if (!(parseAmount(v.amount) > 0)) { setError('El monto tiene que ser un número mayor que cero'); return }
+    if (!v.due_date) { setError('Elige la fecha del próximo pago'); return }
 
     setBusy(true); setError('')
     try {
@@ -51,12 +55,12 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
   return (
     <div className="page stack">
       <div className="between">
-        <span className="section-title" style={{ margin: 0 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+          <Icon name="back" size={18} /> Cancelar
+        </button>
+        <span className="figure-label">
           {payment ? 'Editar pago' : 'Nuevo pago programado'}
         </span>
-        <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onCancel}>
-          Cancelar
-        </button>
       </div>
 
       <div className="card stack">
@@ -66,13 +70,20 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
         </div>
 
         <div>
-          <label htmlFor="amount">Monto de cada cuota</label>
+          <label htmlFor="amount">{esDeuda ? 'Abono a capital de cada cuota' : 'Monto de cada cuota'}</label>
           <input
             id="amount" type="text" inputMode="decimal"
             value={v.amount} onChange={set('amount')}
             placeholder="0.00"
-            style={{ fontSize: 22, fontWeight: 600, padding: '13px 12px' }}
+            className="input-amount"
+            autoComplete="off"
           />
+          {isExpression(v.amount) && !Number.isNaN(parseAmount(v.amount)) && (
+            <p className="hint num">= {money(parseAmount(v.amount))}</p>
+          )}
+          {esDeuda && (
+            <p className="hint">Los intereses los escribes al pagar cada cuota, porque suelen cambiar.</p>
+          )}
         </div>
 
         <div>
@@ -81,12 +92,16 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
         </div>
 
         <div>
-          <label htmlFor="rec">Se repite</label>
-          <select id="rec" value={v.recurrence} onChange={set('recurrence')}>
+          <label>Se repite</label>
+          <div className="chips wrap">
             {RECURRENCES.map(r => (
-              <option key={r.value} value={r.value}>{r.label}</option>
+              <button key={r.value} type="button"
+                      className={'chip' + (v.recurrence === r.value ? ' on' : '')}
+                      onClick={() => setV(prev => ({ ...prev, recurrence: r.value }))}>
+                {r.label}
+              </button>
             ))}
-          </select>
+          </div>
         </div>
       </div>
 
@@ -101,11 +116,13 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
           </select>
 
           {abona ? (
-            <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
-              Faltan {money(restante)}. Cada cuota baja ese saldo y no cuenta como gasto.
+            <p className="hint">
+              {esDeuda
+                ? `Faltan ${money(saldoDestino)}. Cada cuota baja esa deuda y no cuenta como gasto.`
+                : `Llevas ${money(saldoDestino)} ahorrado. Cada cuota se suma y no cuenta como gasto.`}
             </p>
           ) : (
-            <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
+            <p className="hint">
               Para llevar el total pendiente, crea primero la cuenta en Cuentas
               (tipo Tarjeta con el saldo en negativo, o Ahorro apartado).
             </p>
@@ -137,7 +154,7 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
 
       {error && <div className="error">{error}</div>}
 
-      <button className="btn btn-primary btn-block" onClick={save} disabled={busy}>
+      <button className="btn btn-primary btn-block btn-lg" onClick={save} disabled={busy}>
         {busy ? 'Guardando…' : payment ? 'Guardar cambios' : 'Crear pago'}
       </button>
     </div>

@@ -1,25 +1,10 @@
 import { useState, useRef } from 'react'
-import { money, todayISO } from '../lib/format.js'
-
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-               'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-
-function fechaLarga(iso) {
-  if (!iso) return ''
-  const [y, m, d] = iso.split('-').map(Number)
-  return `${d} de ${MESES[m - 1]} de ${y}`
-}
+import { moneyExact as money, todayISO, parseAmount, longDate as fechaLarga, nowHHMM as horaActual } from '../lib/format.js'
 
 function referencia(tx) {
   const fecha = (tx.occurred_on ?? '').replace(/-/g, '').slice(2)
   const corto = String(tx.id ?? '').replace(/-/g, '').slice(0, 4).toUpperCase()
   return `${fecha}-${corto}`
-}
-
-function horaActual() {
-  const d = new Date()
-  const p = (x) => String(x).padStart(2, '0')
-  return `${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 export default function Receipt({ tx, onClose }) {
@@ -54,7 +39,7 @@ export default function Receipt({ tx, onClose }) {
   }
 
   const total = datos.lineas.reduce(
-    (s, l) => s + (Number(String(l.monto).replace(/[\s,]/g, '')) || 0), 0
+    (s, l) => s + (parseAmount(l.monto) || 0), 0
   )
 
   const titulo = esIngreso ? 'RECIBO DE DINERO' : 'CONSTANCIA DE PAGO'
@@ -69,7 +54,7 @@ export default function Receipt({ tx, onClose }) {
       .map(l => `
         <tr>
           <td>${escapar(l.detalle)}</td>
-          <td class="der">${money(Number(String(l.monto).replace(/[\s,]/g, '')) || 0)}</td>
+          <td class="der">${money(parseAmount(l.monto) || 0)}</td>
         </tr>`)
       .join('')
 
@@ -164,10 +149,8 @@ export default function Receipt({ tx, onClose }) {
   return (
     <div className="page stack">
       <div className="between">
-        <span className="section-title" style={{ margin: 0 }}>Recibo</span>
-        <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onClose}>
-          Cerrar
-        </button>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>‹ Cerrar</button>
+        <span className="figure-label">Comprobante</span>
       </div>
 
       <div className="card stack">
@@ -303,7 +286,7 @@ function Vista({ tx, datos, total, titulo, etiquetaPersona, onVolver, onPDF, onC
                   {l.detalle}
                 </td>
                 <td style={{ padding: '6px 2px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
-                  {money(Number(String(l.monto).replace(/[\s,]/g, '')) || 0)}
+                  {money(parseAmount(l.monto) || 0)}
                 </td>
               </tr>
             ))}
@@ -355,4 +338,5 @@ function escapar(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
