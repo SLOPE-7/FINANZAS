@@ -5,11 +5,24 @@ import { usePrefs } from '../lib/prefs.js'
 import { useToast } from '../components/Toast.jsx'
 import Icon from '../components/Icon.jsx'
 import { PasswordForm } from './NewPassword.jsx'
+import { downloadBackup } from '../lib/backup.js'
 
 export default function More({ session }) {
   const { prefs, setPrefs } = usePrefs()
   const toast = useToast()
   const [cambiarClave, setCambiarClave] = useState(false)
+  const [respaldando, setRespaldando] = useState(false)
+
+  async function respaldar() {
+    setRespaldando(true)
+    try {
+      const n = await downloadBackup()
+      toast(`Copia descargada: ${n.transactions} movimientos, ${n.accounts} cuentas`)
+    } catch (e) {
+      alert('No se pudo crear la copia: ' + e.message)
+    }
+    setRespaldando(false)
+  }
 
   return (
     <div className="page stack">
@@ -38,6 +51,14 @@ export default function More({ session }) {
           </span>
           <Icon name="chevron" size={18} className="faint" />
         </Link>
+        <button className="list-item" onClick={respaldar} disabled={respaldando}>
+          <span className="avatar"><Icon name="copy" size={20} /></span>
+          <span className="grow">
+            <span className="line-1">{respaldando ? 'Creando copia…' : 'Copia de seguridad'}</span>
+            <span className="line-2">Descarga todo (cuentas, movimientos, pagos) en un archivo</span>
+          </span>
+          <Icon name="download" size={18} className="faint" />
+        </button>
       </div>
 
       <div className="section-title">Apariencia</div>
