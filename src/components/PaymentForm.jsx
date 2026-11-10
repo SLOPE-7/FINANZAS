@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { todayISO, money, parseAmount } from '../lib/format.js'
+import { todayISO, money, parseAmount, isExpression } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
 import { RECURRENCES, createPayment, updatePayment } from '../lib/payments.js'
 import CategorySelect from './CategorySelect.jsx'
+import Icon from './Icon.jsx'
 
 export default function PaymentForm({ payment, onDone, onCancel }) {
   const [v, setV] = useState({
@@ -53,12 +54,12 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
   return (
     <div className="page stack">
       <div className="between">
-        <span className="section-title" style={{ margin: 0 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+          <Icon name="back" size={18} /> Cancelar
+        </button>
+        <span className="figure-label">
           {payment ? 'Editar pago' : 'Nuevo pago programado'}
         </span>
-        <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onCancel}>
-          Cancelar
-        </button>
       </div>
 
       <div className="card stack">
@@ -73,8 +74,12 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
             id="amount" type="text" inputMode="decimal"
             value={v.amount} onChange={set('amount')}
             placeholder="0.00"
-            style={{ fontSize: 22, fontWeight: 600, padding: '13px 12px' }}
+            className="input-amount"
+            autoComplete="off"
           />
+          {isExpression(v.amount) && !Number.isNaN(parseAmount(v.amount)) && (
+            <p className="hint num">= {money(parseAmount(v.amount))}</p>
+          )}
         </div>
 
         <div>
@@ -83,12 +88,16 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
         </div>
 
         <div>
-          <label htmlFor="rec">Se repite</label>
-          <select id="rec" value={v.recurrence} onChange={set('recurrence')}>
+          <label>Se repite</label>
+          <div className="chips wrap">
             {RECURRENCES.map(r => (
-              <option key={r.value} value={r.value}>{r.label}</option>
+              <button key={r.value} type="button"
+                      className={'chip' + (v.recurrence === r.value ? ' on' : '')}
+                      onClick={() => setV(prev => ({ ...prev, recurrence: r.value }))}>
+                {r.label}
+              </button>
             ))}
-          </select>
+          </div>
         </div>
       </div>
 
@@ -103,13 +112,13 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
           </select>
 
           {abona ? (
-            <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
+            <p className="hint">
               {esDeuda
                 ? `Faltan ${money(saldoDestino)}. Cada cuota baja esa deuda y no cuenta como gasto.`
                 : `Llevas ${money(saldoDestino)} ahorrado. Cada cuota se suma y no cuenta como gasto.`}
             </p>
           ) : (
-            <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
+            <p className="hint">
               Para llevar el total pendiente, crea primero la cuenta en Cuentas
               (tipo Tarjeta con el saldo en negativo, o Ahorro apartado).
             </p>
@@ -141,7 +150,7 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
 
       {error && <div className="error">{error}</div>}
 
-      <button className="btn btn-primary btn-block" onClick={save} disabled={busy}>
+      <button className="btn btn-primary btn-block btn-lg" onClick={save} disabled={busy}>
         {busy ? 'Guardando…' : payment ? 'Guardar cambios' : 'Crear pago'}
       </button>
     </div>

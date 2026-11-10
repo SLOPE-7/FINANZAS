@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { parseAmount } from '../lib/format.js'
+import Icon from './Icon.jsx'
 import { ACCOUNT_TYPES, createAccount, updateAccount } from '../lib/accounts.js'
 
 const EMOJIS = ['🏦', '💵', '💳', '📱', '🐷', '🏧', '💰', '📊', '🤝', '💼']
@@ -61,12 +62,12 @@ export default function AccountForm({ account, onDone, onCancel }) {
   return (
     <div className="page stack">
       <div className="between">
-        <span className="section-title" style={{ margin: 0 }}>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+          <Icon name="back" size={18} /> Cancelar
+        </button>
+        <span className="figure-label">
           {account ? 'Editar cuenta' : 'Nueva cuenta'}
         </span>
-        <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onCancel}>
-          Cancelar
-        </button>
       </div>
 
       <div className="card stack">
@@ -80,7 +81,15 @@ export default function AccountForm({ account, onDone, onCancel }) {
 
         <div>
           <label htmlFor="type">Tipo</label>
-          <select id="type" value={v.type} onChange={set('type')}>
+          <select id="type" value={v.type} onChange={e => {
+            const type = e.target.value
+            const sugerido = ACCOUNT_TYPES.find(t => t.value === type)?.emoji
+            setV(prev => ({
+              ...prev, type,
+              // Cambia el ícono solo si seguía el del tipo anterior.
+              emoji: ACCOUNT_TYPES.some(t => t.emoji === prev.emoji) && sugerido ? sugerido : prev.emoji
+            }))
+          }}>
             {ACCOUNT_TYPES.map(t => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
@@ -89,18 +98,14 @@ export default function AccountForm({ account, onDone, onCancel }) {
 
         <div>
           <label>Ícono</label>
-          <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+          <div className="row wrap" style={{ gap: 6 }}>
             {EMOJIS.map(e => (
               <button
                 key={e}
                 type="button"
                 onClick={() => setV(prev => ({ ...prev, emoji: e }))}
-                className="btn"
-                style={{
-                  padding: '8px 10px',
-                  fontSize: 18,
-                  borderColor: v.emoji === e ? 'var(--text)' : 'var(--border)'
-                }}
+                className={'chip' + (v.emoji === e ? ' on' : '')}
+                style={{ fontSize: 18, padding: '6px 10px' }}
               >
                 {e}
               </button>
@@ -117,7 +122,7 @@ export default function AccountForm({ account, onDone, onCancel }) {
             value={v.initial_balance} onChange={set('initial_balance')}
             placeholder="0.00"
           />
-          <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
+          <p className="hint">
             {account
               ? 'Es el punto de partida, no el saldo de hoy. El saldo actual sale de sumar los movimientos a este número. Cámbialo solo si vas a recalcular.'
               : esTarjeta
@@ -163,7 +168,7 @@ export default function AccountForm({ account, onDone, onCancel }) {
 
       {error && <div className="error">{error}</div>}
 
-      <button className="btn btn-primary btn-block" onClick={save} disabled={busy}>
+      <button className="btn btn-primary btn-block btn-lg" onClick={save} disabled={busy}>
         {busy ? 'Guardando…' : account ? 'Guardar cambios' : 'Crear cuenta'}
       </button>
     </div>

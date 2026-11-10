@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { money, todayISO, parseAmount, longDate as fechaLarga, nowHHMM as horaActual } from '../lib/format.js'
+import { moneyExact as money, todayISO, parseAmount, longDate as fechaLarga, nowHHMM as horaActual } from '../lib/format.js'
 
 function referencia(tx) {
   const fecha = (tx.occurred_on ?? '').replace(/-/g, '').slice(2)
@@ -149,10 +149,8 @@ export default function Receipt({ tx, onClose }) {
   return (
     <div className="page stack">
       <div className="between">
-        <span className="section-title" style={{ margin: 0 }}>Recibo</span>
-        <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onClose}>
-          Cerrar
-        </button>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>‹ Cerrar</button>
+        <span className="figure-label">Comprobante</span>
       </div>
 
       <div className="card stack">

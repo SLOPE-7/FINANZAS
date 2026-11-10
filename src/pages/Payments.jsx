@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react'
-import { money, shortDate, daysUntil, todayISO, parseAmount } from '../lib/format.js'
+import { money, shortDate, daysUntil, todayISO, parseAmount, isExpression } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
 import {
-  listPending, listHistory, committed,
+  listPending, listHistory, committed, RECURRENCES,
   markPaid, skipPayment, deletePayment
 } from '../lib/payments.js'
 import PaymentForm from '../components/PaymentForm.jsx'
+import Icon from '../components/Icon.jsx'
+import { useToast } from '../components/Toast.jsx'
+import { estadoFecha } from './Dashboard.jsx'
+
+const recLabel = (v) => RECURRENCES.find(r => r.value === v)?.label ?? ''
 
 export default function Payments() {
+  const toast = useToast()
   const [pendientes, setPendientes] = useState([])
   const [historial, setHistorial] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -36,7 +42,7 @@ export default function Payments() {
     return (
       <PaymentForm
         payment={editing === 'new' ? null : editing}
-        onDone={() => { setEditing(null); load() }}
+        onDone={() => { setEditing(null); load(); toast('Pago guardado') }}
         onCancel={() => setEditing(null)}
       />
     )
@@ -47,7 +53,7 @@ export default function Payments() {
       <PayDialog
         payment={paying}
         accounts={accounts}
-        onDone={() => { setPaying(null); load() }}
+        onDone={() => { setPaying(null); load(); toast('Pago registrado') }}
         onCancel={() => setPaying(null)}
       />
     )
@@ -62,20 +68,33 @@ export default function Payments() {
     return a.type === 'tarjeta' ? `faltan ${monto}` : `llevas ${monto}`
   }
 
+  // Agrupa por urgencia.
+  const grupos = [
+    { titulo: 'Vencidos', items: [] },
+    { titulo: 'Esta semana', items: [] },
+    { titulo: 'Próximos 30 días', items: [] },
+    { titulo: 'Más adelante', items: [] }
+  ]
+  for (const p of pendientes) {
+    const d = daysUntil(p.due_date)
+    grupos[d < 0 ? 0 : d <= 7 ? 1 : d <= 30 ? 2 : 3].items.push(p)
+  }
+
   return (
     <div className="page stack">
-      <div className="card">
+      <div className="card-hero">
         <div className="figure-label">Comprometido en 30 días</div>
-        <div className="figure-lg num warn">{money(total)}</div>
+        <div className="figure-xl num warn">{money(total)}</div>
+        <p className="small faint" style={{ marginTop: 4 }}>
+          Incluye las repeticiones: un pago semanal cuenta las veces que cae en el mes.
+        </p>
         {vencido > 0 && (
-          <div className="neg" style={{ fontSize: 13, marginTop: 6 }}>
-            {money(vencido)} ya vencido
-          </div>
+          <div className="badge neg" style={{ marginTop: 10 }}>{money(vencido)} ya vencido</div>
         )}
       </div>
 
       <button className="btn btn-primary btn-block" onClick={() => setEditing('new')}>
-        Programar pago
+        <Icon name="plus" size={18} /> Programar pago
       </button>
 
       {error && <div className="error">{error}</div>}
@@ -86,32 +105,41 @@ export default function Payments() {
         <div className="list">
           <div className="empty">
             No tienes pagos programados.<br />
-            Agrega el alquiler, la energía, el internet.
+            Agrega el alquiler, la energía, el internet o las cuotas de un préstamo.
           </div>
         </div>
       ) : (
-        <>
-          <div className="section-title">Pendientes</div>
-          <div className="list">
-            {pendientes.map(p => (
-              <PendingRow
-                key={p.id}
-                payment={p}
-                restante={p.target_account_id ? saldoDe(p.target_account_id) : null}
-                onPay={() => setPaying(p)}
-                onEdit={() => setEditing(p)}
-                onSkip={async () => {
-                  if (!confirm(`¿Omitir "${p.name}"? No se registrará nada.`)) return
-                  try { await skipPayment(p.id); load() } catch (e) { setError(e.message) }
-                }}
-                onDelete={async () => {
-                  if (!confirm(`¿Borrar "${p.name}" y su recurrencia?`)) return
-                  try { await deletePayment(p.id); load() } catch (e) { setError(e.message) }
-                }}
-              />
-            ))}
+        grupos.filter(g => g.items.length).map(g => (
+          <div key={g.titulo}>
+            <div className="between">
+              <div className={'section-title' + (g.titulo === 'Vencidos' ? ' neg' : '')}>{g.titulo}</div>
+              <span className="small faint num" style={{ marginTop: 16, marginRight: 4 }}>
+                {money(g.items.reduce((s, p) => s + Number(p.amount), 0))}
+              </span>
+            </div>
+            <div className="list" style={{ marginTop: 6 }}>
+              {g.items.map(p => (
+                <PendingRow
+                  key={p.id}
+                  payment={p}
+                  restante={p.target_account_id ? saldoDe(p.target_account_id) : null}
+                  onPay={() => setPaying(p)}
+                  onEdit={() => setEditing(p)}
+                  onSkip={async () => {
+                    if (!confirm(`¿Omitir "${p.name}" esta vez? No se registrará nada.`)) return
+                    try { await skipPayment(p.id); load(); toast('Pago omitido') }
+                    catch (e) { setError(e.message) }
+                  }}
+                  onDelete={async () => {
+                    if (!confirm(`¿Borrar "${p.name}" y su recurrencia?`)) return
+                    try { await deletePayment(p.id); load(); toast('Pago borrado') }
+                    catch (e) { setError(e.message) }
+                  }}
+                />
+              ))}
+            </div>
           </div>
-        </>
+        ))
       )}
 
       {historial.length > 0 && (
@@ -127,12 +155,10 @@ export default function Payments() {
             <div className="list">
               {historial.map(p => (
                 <div key={p.id} className="list-item" style={{ cursor: 'default' }}>
-                  <span style={{ fontSize: 18 }}>
-                    {p.status === 'pagado' ? '✅' : '⏭️'}
-                  </span>
+                  <span className="avatar">{p.status === 'pagado' ? '✅' : '⏭️'}</span>
                   <span className="grow">
-                    <span style={{ display: 'block' }}>{p.name}</span>
-                    <span className="faint" style={{ fontSize: 12 }}>
+                    <span className="line-1">{p.name}</span>
+                    <span className="line-2">
                       {shortDate(p.due_date)} · {p.status === 'pagado' ? 'pagado' : 'omitido'}
                     </span>
                   </span>
@@ -149,52 +175,37 @@ export default function Payments() {
 
 function PendingRow({ payment: p, restante, onPay, onEdit, onSkip, onDelete }) {
   const [open, setOpen] = useState(false)
-  const dias = daysUntil(p.due_date)
-
-  let estado, clase
-  if (dias < 0)       { estado = `vencido hace ${Math.abs(dias)} d`; clase = 'neg' }
-  else if (dias === 0){ estado = 'vence hoy';        clase = 'neg' }
-  else if (dias <= 3) { estado = `en ${dias} días`;  clase = 'warn' }
-  else                { estado = shortDate(p.due_date); clase = 'faint' }
+  const { texto, clase } = estadoFecha(p.due_date)
+  const rec = p.recurrence && p.recurrence !== 'ninguna' ? recLabel(p.recurrence).toLowerCase() : ''
 
   return (
     <>
-      <button className="list-item" onClick={() => setOpen(v => !v)}>
-        <span style={{ fontSize: 18 }}>
-          {p.target?.emoji ?? p.category?.emoji ?? '📅'}
-        </span>
+      <div className="list-item" onClick={() => setOpen(v => !v)} role="button" aria-expanded={open}>
+        <span className="avatar">{p.target?.emoji ?? p.category?.emoji ?? '📅'}</span>
         <span className="grow">
-          <span style={{ display: 'block' }}>{p.name}</span>
-          <span className={clase} style={{ fontSize: 12 }}>
-            {estado}
-            {restante !== null && (
-              <span className="faint"> · {restante}</span>
-            )}
+          <span className="line-1">{p.name}</span>
+          <span className="line-2">
+            <span className={clase}>{texto}</span>
+            {rec && ` · ${rec}`}
+            {restante && ` · ${restante}`}
           </span>
         </span>
         <span className="figure-md num">{money(p.amount)}</span>
-      </button>
+        <button
+          className="btn btn-sm"
+          style={{ flex: 'none' }}
+          onClick={(e) => { e.stopPropagation(); onPay() }}
+          aria-label={`Pagar ${p.name}`}
+        >
+          Pagar
+        </button>
+      </div>
 
       {open && (
-        <div
-          className="row"
-          style={{ padding: '10px 16px', gap: 8, borderBottom: '1px solid var(--border)',
-                   flexWrap: 'wrap' }}
-        >
-          <button className="btn" style={{ fontSize: 13 }} onClick={onPay}>
-            Marcar pagado
-          </button>
-          <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onEdit}>
-            Editar
-          </button>
-          <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onSkip}>
-            Omitir
-          </button>
-          <button
-            className="btn btn-ghost neg"
-            style={{ fontSize: 13, marginLeft: 'auto' }}
-            onClick={onDelete}
-          >
+        <div className="list-actions">
+          <button className="btn" onClick={onEdit}>Editar</button>
+          <button className="btn" onClick={onSkip}>Omitir esta vez</button>
+          <button className="btn btn-ghost neg" style={{ marginLeft: 'auto' }} onClick={onDelete}>
             Borrar
           </button>
         </div>
@@ -205,13 +216,14 @@ function PendingRow({ payment: p, restante, onPay, onEdit, onSkip, onDelete }) {
 
 function PayDialog({ payment: p, accounts, onDone, onCancel }) {
   const [accountId, setAccountId] = useState(p.account_id ?? accounts[0]?.id ?? '')
-  const [amount, setAmount] = useState(p.amount)
+  const [amount, setAmount] = useState(String(p.amount))
   const [paidOn, setPaidOn] = useState(todayISO())
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   const destino = accounts.find(a => a.id === p.target_account_id)
   const saldoDestino = destino ? money(Math.abs(Number(destino.balance))) : ''
+  const origen = accounts.find(a => a.id === accountId)
 
   async function confirmar() {
     if (!accountId) { setError('Elige la cuenta de donde salió'); return }
@@ -230,20 +242,21 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
   return (
     <div className="page stack">
       <div className="between">
-        <span className="section-title" style={{ margin: 0 }}>Registrar pago</span>
-        <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={onCancel}>
-          Cancelar
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+          <Icon name="back" size={18} /> Cancelar
         </button>
+        <span className="figure-label">Registrar pago</span>
       </div>
 
       <div className="card stack">
         <div>
-          <div className="figure-label">{p.name}</div>
-          <div className="faint" style={{ fontSize: 13 }}>
+          <div style={{ fontWeight: 650, fontSize: 17 }}>{p.name}</div>
+          <div className="faint small">
             Vencía el {shortDate(p.due_date)}
+            {p.recurrence && p.recurrence !== 'ninguna' && ` · ${recLabel(p.recurrence).toLowerCase()}`}
           </div>
           {destino && (
-            <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+            <div className="muted small" style={{ marginTop: 6 }}>
               Abona a {destino.emoji} {destino.name} ·{' '}
               {destino.type === 'tarjeta' ? `faltan ${saldoDestino}` : `llevas ${saldoDestino}`}
             </div>
@@ -253,12 +266,12 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
         <div>
           <label htmlFor="monto">Monto real</label>
           <input
-            id="monto" type="text" inputMode="decimal"
+            id="monto" type="text" inputMode="decimal" className="input-amount"
             value={amount} onChange={e => setAmount(e.target.value)}
-            style={{ fontSize: 22, fontWeight: 600, padding: '13px 12px' }}
           />
-          <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
-            Si abonas más o menos de la cuota, corrígelo aquí.
+          <p className="hint">
+            {isExpression(amount) && !Number.isNaN(parseAmount(amount)) ? `= ${money(parseAmount(amount))}. ` : ''}
+            Si pagaste más o menos de la cuota, corrígelo aquí.
           </p>
         </div>
 
@@ -269,9 +282,12 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
             {accounts
               .filter(a => a.id !== p.target_account_id)
               .map(a => (
-                <option key={a.id} value={a.id}>{a.emoji} {a.name}</option>
+                <option key={a.id} value={a.id}>{a.emoji} {a.name} · {money(a.balance)}</option>
               ))}
           </select>
+          {origen && origen.type !== 'tarjeta' && Number(origen.balance) < (parseAmount(amount) || 0) && (
+            <p className="hint warn">No alcanza: esta cuenta tiene {money(origen.balance)}.</p>
+          )}
         </div>
 
         <div>
@@ -282,7 +298,7 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
 
       {error && <div className="error">{error}</div>}
 
-      <button className="btn btn-primary btn-block" onClick={confirmar} disabled={busy}>
+      <button className="btn btn-primary btn-block btn-lg" onClick={confirmar} disabled={busy}>
         {busy ? 'Registrando…' : 'Confirmar pago'}
       </button>
     </div>

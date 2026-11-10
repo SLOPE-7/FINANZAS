@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { money, todayISO, parseAmount, longDate as fechaLarga, nowHHMM as horaActual } from '../lib/format.js'
+import { Link } from 'react-router-dom'
+import { moneyExact as money, todayISO, parseAmount, longDate as fechaLarga, nowHHMM as horaActual } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
 
 function referencia(fecha) {
@@ -42,13 +43,24 @@ const TIPOS = [
   }
 ]
 
+// El borrador se guarda en el navegador para no perderlo al cambiar
+// de pestaña o cerrar la app a medio llenar.
+const BORRADOR = 'finanzas_recibo_borrador'
+function leerBorrador() {
+  try { return JSON.parse(window.localStorage.getItem(BORRADOR) || 'null') } catch { return null }
+}
+function guardarBorrador(x) {
+  try { window.localStorage.setItem(BORRADOR, JSON.stringify(x)) } catch {}
+}
+
 export default function BlankReceipt() {
-  const [ref, setRef] = useState(() => referencia(todayISO()))
+  const borrador = leerBorrador()
+  const [ref, setRef] = useState(() => borrador?.ref ?? referencia(todayISO()))
   const [vista, setVista] = useState(false)
   const [generando, setGenerando] = useState(false)
   const [cuentas, setCuentas] = useState([])
 
-  const [d, setD] = useState({
+  const [d, setD] = useState(() => borrador?.d ?? {
     tipo: 'recibi',
     persona: '',
     motivo: '',
@@ -63,6 +75,8 @@ export default function BlankReceipt() {
   useEffect(() => {
     listAccounts().then(setCuentas).catch(() => setCuentas([]))
   }, [])
+
+  useEffect(() => { guardarBorrador({ ref, d }) }, [ref, d])
 
   const set = (k) => (e) => setD(p => ({ ...p, [k]: e.target.value }))
   const tipo = TIPOS.find(t => t.value === d.tipo)
@@ -295,7 +309,7 @@ export default function BlankReceipt() {
           aNum={aNum} extras={camposExtra()}
         />
 
-        <button className="btn btn-primary btn-block" onClick={generarImagen} disabled={generando}>
+        <button className="btn btn-primary btn-block btn-lg" onClick={generarImagen} disabled={generando}>
           {generando ? 'Generando…' : 'Guardar como imagen'}
         </button>
 
@@ -309,16 +323,16 @@ export default function BlankReceipt() {
 
   return (
     <div className="page stack">
-      <div className="row" style={{ gap: 5, flexWrap: 'wrap' }}>
+      <div className="between">
+        <Link to="/mas" className="btn btn-ghost btn-sm">‹ Más</Link>
+        <button className="btn btn-ghost btn-sm" onClick={limpiar}>Vaciar</button>
+      </div>
+
+      <div className="seg">
         {TIPOS.map(t => (
           <button
             key={t.value}
-            className="btn grow"
-            style={{
-              fontSize: 13, padding: '9px 4px', minWidth: 70,
-              borderColor: d.tipo === t.value ? 'var(--text)' : 'var(--border)',
-              color: d.tipo === t.value ? 'var(--text)' : 'var(--muted)'
-            }}
+            className={d.tipo === t.value ? 'on' : ''}
             onClick={() => setD(p => ({ ...p, tipo: t.value }))}
           >
             {t.label}

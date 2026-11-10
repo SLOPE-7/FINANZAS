@@ -32,15 +32,24 @@ export async function createCategory({ name, kind, emoji, color, parent_id }) {
   if (error) throw error
 }
 
-export async function updateCategory(id, { name, emoji, color }) {
+export async function updateCategory(id, { name, emoji, color, budget }) {
   const cambios = { name: (name ?? '').trim(), emoji }
+  // El presupuesto solo existe si se aplicó la migración de presupuestos.
+  if (budget !== undefined) cambios.budget = budget
   // Solo se toca el color si viene: antes cada edición lo pisaba con gris.
   if (color) cambios.color = color
   const { error } = await supabase
     .from('categories')
     .update(cambios)
     .eq('id', id)
-  if (error) throw error
+  if (error) throw translateBudget(error)
+}
+
+function translateBudget(error) {
+  if (/budget/.test(error.message ?? '')) {
+    return new Error('Para usar presupuestos, ejecuta en Supabase el archivo supabase/migrations/20261110_presupuestos.sql')
+  }
+  return error
 }
 
 // Archivar un padre archiva también sus subcategorías.

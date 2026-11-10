@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js'
-import { parseAmount } from './format.js'
+import { parseAmount, todayISO } from './format.js'
 
 export const ACCOUNT_TYPES = [
   { value: 'banco',      label: 'Banco',              emoji: '🏦' },
@@ -66,6 +66,28 @@ export async function deleteAccount(id) {
     }
     throw error
   }
+}
+
+// Ajusta el saldo al valor real registrando la diferencia como un
+// movimiento "Ajuste de saldo". Así el historial cuadra y no se toca
+// el saldo de partida.
+export async function adjustBalance(account, saldoReal) {
+  const real = Number(saldoReal)
+  if (!Number.isFinite(real)) throw new Error('El saldo no es un número válido')
+  const diferencia = Math.round((real - Number(account.balance)) * 100) / 100
+  if (diferencia === 0) return 0
+  const { error } = await supabase.from('transactions').insert({
+    kind: diferencia > 0 ? 'ingreso' : 'egreso',
+    amount: Math.abs(diferencia),
+    occurred_on: todayISO(),
+    account_id: account.id,
+    to_account_id: null,
+    category_id: null,
+    description: 'Ajuste de saldo',
+    note: null
+  })
+  if (error) throw error
+  return diferencia
 }
 
 function clean(v) {
