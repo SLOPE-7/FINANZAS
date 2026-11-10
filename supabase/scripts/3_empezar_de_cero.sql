@@ -1,13 +1,14 @@
 -- PASO 3 · EMPEZAR DE CERO
--- Borra todos los movimientos y pagos programados EXCEPTO los de la
--- categoría de tus hijos (y sus subcategorías). Las cuentas y las
+-- Borra todos los movimientos y pagos programados EXCEPTO los de las
+-- categorías indicadas (y sus subcategorías). Las cuentas y las
 -- categorías se conservan.
--- Cambia 'Hijos' por el nombre EXACTO (línea marcada).
+-- Pon los nombres EXACTOS en la línea marcada.
 -- Es todo o nada: si algo falla, no se borra nada.
 
 do $$
 declare
-  nombre text := 'Hijos';                                  -- ← nombre aquí
+  nombres text[] := array['Kenneth💙', 'Antonella🩷'];   -- ← nombres aquí
+  faltan text;
   n_tx int;
   n_pagos int;
   n_duenos int;
@@ -18,19 +19,24 @@ begin
     raise exception 'Primero ejecuta el PASO 1 (copia de seguridad).';
   end if;
 
-  create temp table _padre on commit drop as
-    select id, user_id from public.categories
-    where lower(trim(name)) = lower(trim(nombre));
-
-  -- Seguridad 2: la categoría tiene que existir.
-  if not exists (select 1 from _padre) then
-    raise exception 'No encontré la categoría "%". Revisa el nombre exacto (paso 2).', nombre;
+  -- Seguridad 2: cada nombre tiene que existir como categoría.
+  select string_agg(n, ', ') into faltan
+  from unnest(nombres) n
+  where not exists (
+    select 1 from public.categories c where lower(trim(c.name)) = lower(trim(n))
+  );
+  if faltan is not null then
+    raise exception 'No encontré estas categorías: %. Revisa el nombre exacto (paso 2).', faltan;
   end if;
 
-  -- Seguridad 3: solo se toca la cuenta de usuario dueña de esa categoría.
+  create temp table _padre on commit drop as
+    select id, user_id from public.categories
+    where lower(trim(name)) in (select lower(trim(n)) from unnest(nombres) n);
+
+  -- Seguridad 3: solo se toca la cuenta de usuario dueña de esas categorías.
   select count(distinct user_id) into n_duenos from _padre;
   if n_duenos <> 1 then
-    raise exception 'La categoría "%" existe en % usuarios distintos. Avísale a Claude.', nombre, n_duenos;
+    raise exception 'Esas categorías pertenecen a % usuarios distintos. Avísale a Claude.', n_duenos;
   end if;
 
   create temp table _k on commit drop as
@@ -48,5 +54,6 @@ begin
     and (p.category_id is null or p.category_id not in (select id from _k));
   get diagnostics n_pagos = row_count;
 
-  raise notice 'Listo: se borraron % movimientos y % pagos programados. Se conservaron los de "%".', n_tx, n_pagos, nombre;
+  raise notice 'Listo: se borraron % movimientos y % pagos programados. Se conservaron los de: %.',
+    n_tx, n_pagos, array_to_string(nombres, ', ');
 end $$;
