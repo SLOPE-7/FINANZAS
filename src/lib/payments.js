@@ -29,7 +29,7 @@ export async function listPending() {
   return data ?? []
 }
 
-export async function listHistory(limit = 30) {
+export async function listHistory(limit = 80) {
   const { data, error } = await supabase
     .from('scheduled_payments')
     .select(SELECT)
@@ -49,6 +49,21 @@ export function nextOccurrence(dateISO, recurrence) {
     case 'anual':     return addMonthsISO(dateISO, 12)
     default:          return null
   }
+}
+
+// Todas las fechas en que cae cada pago pendiente dentro de [desde, hasta].
+// Sirve para el calendario del centro de pagos.
+export function occurrencesBetween(pendientes, desde, hasta) {
+  const out = []
+  for (const p of pendientes) {
+    let fecha = p.due_date
+    let guard = 0
+    while (fecha && fecha <= hasta && guard++ < 400) {
+      if (fecha >= desde) out.push({ fecha, pago: p, primera: fecha === p.due_date })
+      fecha = nextOccurrence(fecha, p.recurrence)
+    }
+  }
+  return out.sort((a, b) => a.fecha.localeCompare(b.fecha))
 }
 
 // Cuánto hay que pagar en los próximos `hastaDias` días.

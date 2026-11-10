@@ -22,14 +22,25 @@ export async function listCategoryTree(kind) {
 }
 
 export async function createCategory({ name, kind, emoji, color, parent_id }) {
-  const { error } = await supabase.from('categories').insert({
+  const { data, error } = await supabase.from('categories').insert({
     name: (name ?? '').trim(),
     kind,
     emoji: emoji || '📌',
     color: color || '#8b8b93',
     parent_id: parent_id || null
-  })
+  }).select().single()
   if (error) throw error
+  return data
+}
+
+// Devuelve la categoría con ese nombre (sin importar mayúsculas) o la
+// crea. Se usa para "Intereses" al pagar préstamos y tarjetas.
+export async function ensureCategory({ name, kind = 'egreso', emoji = '📌', color }) {
+  const lista = await listCategories(kind)
+  const clave = name.trim().toLowerCase()
+  const existente = lista.find(c => c.name.trim().toLowerCase() === clave)
+  if (existente) return existente
+  return createCategory({ name, kind, emoji, color })
 }
 
 export async function updateCategory(id, { name, emoji, color, budget }) {

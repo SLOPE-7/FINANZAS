@@ -56,7 +56,7 @@ export default function Transactions() {
   useEffect(() => {
     const st = location.state
     if (!st) return
-    if (st.nuevo) { setReceipt(null); setEditing('new') }
+    if (st.nuevo) { setReceipt(null); setEditing(st.inicial ? { plantilla: st.inicial } : 'new') }
     if (st.exportar) setBuscando(true)
     navigate(location.pathname, { replace: true, state: null })
   }, [location.state])

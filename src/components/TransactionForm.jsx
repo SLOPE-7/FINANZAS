@@ -145,7 +145,7 @@ export default function TransactionForm({ tx, plantilla, onDone, onSavedAndNext,
           <Icon name="back" size={18} /> Cancelar
         </button>
         <span className="figure-label">
-          {tx ? 'Editar movimiento' : plantilla ? 'Repetir movimiento' : 'Nuevo movimiento'}
+          {tx ? 'Editar movimiento' : plantilla?.id ? 'Repetir movimiento' : 'Nuevo movimiento'}
         </span>
       </div>
 

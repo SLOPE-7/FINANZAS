@@ -1,4 +1,4 @@
-import { listAccounts, esLiquida } from './accounts.js'
+import { listAccounts, esLiquida, esDeuda } from './accounts.js'
 import { listTransactions, listTotalsRange, monthTotals } from './transactions.js'
 import { listPending, committed } from './payments.js'
 import { listCategories } from './categories.js'
@@ -27,6 +27,7 @@ export async function loadDashboard() {
   const apartado = suma(cuentas.filter(c => c.type === 'ahorro'))
   const porCobrar = suma(cuentas.filter(c => c.type === 'por_cobrar'))
   const deudaTarjetas = suma(cuentas.filter(c => c.type === 'tarjeta'))
+  const deudaPrestamos = suma(cuentas.filter(c => c.type === 'prestamo'))
   const patrimonio = suma(cuentas)
 
   const { total: comprometido, vencido } = committed(pendientes, 30)
@@ -49,6 +50,7 @@ export async function loadDashboard() {
     libre: saldo - comprometido,
     patrimonio,
     deudaTarjetas,
+    deudaPrestamos,
     ingresos,
     egresos,
     balance,
@@ -61,7 +63,7 @@ export async function loadDashboard() {
     tendencia,
     proximos: pendientes.slice(0, 5),
     porCategoria: agruparPorCategoria(movimientos, categorias),
-    tarjetas: cuentas.filter(c => c.type === 'tarjeta' && (c.due_day || c.statement_day)),
+    tarjetas: cuentas.filter(c => esDeuda(c.type) && Number(c.balance) < 0),
     sinCuentas: cuentas.length === 0
   }
 }

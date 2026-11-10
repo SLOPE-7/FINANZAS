@@ -11,9 +11,13 @@ Se instala en la pantalla de inicio (PWA).
 - **Movimientos**: gastos, ingresos y transferencias por mes. Búsqueda, filtros,
   exportar a CSV, repetir un movimiento y comprobante imprimible.
   El monto acepta cuentas (`150+75`, `3*45`).
-- **Pagos**: pagos programados con recurrencia, agrupados por urgencia. Pueden abonar a una
-  tarjeta o a un ahorro.
-- **Cuentas**: saldo por cuenta, uso de tarjetas, historial por cuenta y *ajustar saldo*.
+- **Pagos**: pagos programados con recurrencia, en lista por urgencia o en calendario,
+  con resumen del mes y filtros. Pueden abonar a una tarjeta, un préstamo o un ahorro.
+- **Cuentas**: saldo por cuenta, uso de tarjetas, historial por cuenta y *actualizar saldo*
+  (corrige el saldo de hoy sin crear ingresos ni gastos falsos).
+- **Préstamos**: al registrarlo, el capital entra a la cuenta elegida y queda la deuda.
+  Cada cuota se paga con desglose *capital + intereses + otros cargos* en un solo pago:
+  el capital baja la deuda y los intereses cuentan como gasto.
 - **Más**: recibo en blanco (imagen para WhatsApp), categorías y presupuestos,
   tema claro/oscuro, ocultar cifras, cambiar contraseña.
 

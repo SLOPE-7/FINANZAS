@@ -141,17 +141,18 @@ export default function Dashboard() {
 
       {d.tarjetas.length > 0 && (
         <>
-          <div className="section-title">Tarjetas</div>
+          <div className="section-title">Deudas</div>
           <div className="list">
             {d.tarjetas.map(t => {
               const prox = proximoDia(t.due_day)
               const corte = proximoDia(t.statement_day)
               return (
-                <div key={t.id} className="list-item" style={{ cursor: 'default' }}>
+                <Link key={t.id} to="/cuentas" className="list-item">
                   <span className="avatar">{t.emoji}</span>
                   <span className="grow">
                     <span className="line-1">{t.name}</span>
                     <span className="line-2">
+                      {corte === null && prox === null && (t.type === 'prestamo' ? 'Préstamo' : 'Tarjeta')}
                       {corte !== null && `corte en ${corte} d`}
                       {corte !== null && prox !== null && ' · '}
                       {prox !== null && (
@@ -160,7 +161,7 @@ export default function Dashboard() {
                     </span>
                   </span>
                   <span className="figure-md num">{money(Math.abs(Number(t.balance)))}</span>
-                </div>
+                </Link>
               )
             })}
           </div>
@@ -213,9 +214,12 @@ export default function Dashboard() {
           <span className="figure-label">Patrimonio neto</span>
           <span className="num figure-md">{money(d.patrimonio)}</span>
         </div>
-        {d.deudaTarjetas < 0 && (
+        {(d.deudaTarjetas < 0 || d.deudaPrestamos < 0) && (
           <div className="faint small" style={{ marginTop: 6 }}>
-            Incluye {money(Math.abs(d.deudaTarjetas))} de deuda en tarjetas
+            Ya descuenta lo que debes:
+            {d.deudaTarjetas < 0 && ` ${money(Math.abs(d.deudaTarjetas))} en tarjetas`}
+            {d.deudaTarjetas < 0 && d.deudaPrestamos < 0 && ' y'}
+            {d.deudaPrestamos < 0 && ` ${money(Math.abs(d.deudaPrestamos))} en préstamos`}
           </div>
         )}
       </div>

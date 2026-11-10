@@ -18,6 +18,9 @@ Ejecuta en **SQL Editor** los archivos de `migrations/`, en orden:
 
 1. `20261110_seguridad_vista_saldos.sql`: **recomendado**. Hace que la vista de saldos respete RLS.
 2. `20261110_presupuestos.sql`: activa los presupuestos por categoría.
+3. `20261111_prestamos.sql`: **necesario para préstamos**. Permite el tipo de cuenta `prestamo`.
+
+Todas se pueden ejecutar más de una vez sin problema.
 
 ## Recuperar contraseña
 

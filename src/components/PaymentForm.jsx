@@ -5,15 +5,16 @@ import { RECURRENCES, createPayment, updatePayment } from '../lib/payments.js'
 import CategorySelect from './CategorySelect.jsx'
 import Icon from './Icon.jsx'
 
-export default function PaymentForm({ payment, onDone, onCancel }) {
+export default function PaymentForm({ payment, defaults, onDone, onCancel }) {
+  const d0 = defaults ?? {}
   const [v, setV] = useState({
-    name: payment?.name ?? '',
+    name: payment?.name ?? d0.name ?? '',
     amount: payment?.amount ?? '',
-    due_date: payment?.due_date ?? todayISO(),
+    due_date: payment?.due_date ?? d0.due_date ?? todayISO(),
     recurrence: payment?.recurrence ?? 'mensual',
     category_id: payment?.category_id ?? '',
     account_id: payment?.account_id ?? '',
-    target_account_id: payment?.target_account_id ?? '',
+    target_account_id: payment?.target_account_id ?? d0.target_account_id ?? '',
     notify: payment?.notify ?? true
   })
   const [accounts, setAccounts] = useState([])
@@ -29,11 +30,11 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
 
   // Solo tiene sentido abonar a deudas o ahorros, no a la cuenta corriente.
   const destinos = accounts.filter(a =>
-    a.type === 'tarjeta' || a.type === 'ahorro'
+    a.type === 'tarjeta' || a.type === 'prestamo' || a.type === 'ahorro'
   )
 
   const destino = accounts.find(a => a.id === v.target_account_id)
-  const esDeuda = destino?.type === 'tarjeta'
+  const esDeuda = destino?.type === 'tarjeta' || destino?.type === 'prestamo'
   const saldoDestino = destino ? Math.abs(Number(destino.balance)) : 0
 
   async function save() {
@@ -69,7 +70,7 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
         </div>
 
         <div>
-          <label htmlFor="amount">Monto de cada cuota</label>
+          <label htmlFor="amount">{esDeuda ? 'Abono a capital de cada cuota' : 'Monto de cada cuota'}</label>
           <input
             id="amount" type="text" inputMode="decimal"
             value={v.amount} onChange={set('amount')}
@@ -79,6 +80,9 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
           />
           {isExpression(v.amount) && !Number.isNaN(parseAmount(v.amount)) && (
             <p className="hint num">= {money(parseAmount(v.amount))}</p>
+          )}
+          {esDeuda && (
+            <p className="hint">Los intereses los escribes al pagar cada cuota, porque suelen cambiar.</p>
           )}
         </div>
 
