@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js'
-import { monthBounds } from './format.js'
+import { monthBounds, parseAmount } from './format.js'
 
 const SELECT = `
   id, kind, amount, occurred_on, description, note,
@@ -68,8 +68,9 @@ function clean(v) {
 }
 
 function toNumber(x) {
-  const n = Number(String(x ?? '').replace(/,/g, ''))
-  return Number.isFinite(n) ? n : 0
+  const n = parseAmount(x)
+  if (!(n > 0)) throw new Error('El monto tiene que ser un número mayor que cero')
+  return n
 }
 
 // Convierte los errores de Postgres en algo legible.

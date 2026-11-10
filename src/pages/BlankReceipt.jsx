@@ -1,21 +1,6 @@
 import { useState, useEffect } from 'react'
-import { money, todayISO } from '../lib/format.js'
+import { money, todayISO, parseAmount, longDate as fechaLarga, nowHHMM as horaActual } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
-
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-               'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-
-function fechaLarga(iso) {
-  if (!iso) return ''
-  const [y, m, d] = iso.split('-').map(Number)
-  return `${d} de ${MESES[m - 1]} de ${y}`
-}
-
-function horaActual() {
-  const d = new Date()
-  const p = (x) => String(x).padStart(2, '0')
-  return `${p(d.getHours())}:${p(d.getMinutes())}`
-}
 
 function referencia(fecha) {
   const base = (fecha ?? todayISO()).replace(/-/g, '').slice(2)
@@ -58,7 +43,7 @@ const TIPOS = [
 ]
 
 export default function BlankReceipt() {
-  const [ref] = useState(() => referencia(todayISO()))
+  const [ref, setRef] = useState(() => referencia(todayISO()))
   const [vista, setVista] = useState(false)
   const [generando, setGenerando] = useState(false)
   const [cuentas, setCuentas] = useState([])
@@ -93,7 +78,7 @@ export default function BlankReceipt() {
   const agregar = () => setD(p => ({ ...p, lineas: [...p.lineas, { detalle: '', monto: '' }] }))
   const quitar = (i) => setD(p => ({ ...p, lineas: p.lineas.filter((_, j) => j !== i) }))
 
-  const aNum = (x) => Number(String(x ?? '').replace(/[\s,]/g, '')) || 0
+  const aNum = (x) => parseAmount(x) || 0
   const total = d.lineas.reduce((s, l) => s + aNum(l.monto), 0)
 
   // Líneas de datos que van bajo el encabezado, ya resueltas
@@ -118,6 +103,8 @@ export default function BlankReceipt() {
       vence: '', interes: '', resguardo: '',
       lineas: [{ detalle: '', monto: '' }]
     })
+    // Un recibo nuevo necesita su propio número.
+    setRef(referencia(todayISO()))
     setVista(false)
   }
 
@@ -131,17 +118,23 @@ export default function BlankReceipt() {
       const ANCHO = 720
       const MARGEN = 48
       const ALTO_FILA = 34
-      const altoLeyenda = tipo.leyenda ? 60 : 0
-      const ALTO = 300 + extras.length * 30 + filas.length * ALTO_FILA + altoLeyenda + 180
-
-      const canvas = document.createElement('canvas')
-      canvas.width = ANCHO * ESCALA
-      canvas.height = ALTO * ESCALA
-      const c = canvas.getContext('2d')
-      c.scale(ESCALA, ESCALA)
-
       const serif = 'Georgia, "Times New Roman", serif'
       const der = ANCHO - MARGEN
+      const anchoValor = der - (MARGEN + 160)
+
+      // Se mide la leyenda antes de fijar el alto: si es larga ocupa
+      // varias líneas y antes se cortaba el pie de la imagen.
+      const canvas = document.createElement('canvas')
+      let c = canvas.getContext('2d')
+      c.font = `italic 13px ${serif}`
+      const lineasLeyenda = tipo.leyenda ? envolver(c, tipo.leyenda, ANCHO - MARGEN * 2) : []
+      const altoLeyenda = lineasLeyenda.length ? 40 + lineasLeyenda.length * 19 : 0
+      const ALTO = 300 + extras.length * 30 + filas.length * ALTO_FILA + altoLeyenda + 180
+
+      canvas.width = ANCHO * ESCALA
+      canvas.height = ALTO * ESCALA
+      c = canvas.getContext('2d')
+      c.scale(ESCALA, ESCALA)
 
       c.fillStyle = '#ffffff'
       c.fillRect(0, 0, ANCHO, ALTO)
@@ -172,7 +165,7 @@ export default function BlankReceipt() {
       c.fillText(`${tipo.campo}:`, MARGEN, y)
       c.font = `bold 17px ${serif}`
       c.fillStyle = '#111111'
-      c.fillText(d.persona || '—', MARGEN + 160, y)
+      c.fillText(recortar(c, d.persona || '—', anchoValor), MARGEN + 160, y)
 
       y += 30
       c.font = `15px ${serif}`
@@ -180,7 +173,7 @@ export default function BlankReceipt() {
       c.fillText('Por concepto de:', MARGEN, y)
       c.font = `bold 17px ${serif}`
       c.fillStyle = '#111111'
-      c.fillText(d.motivo || '—', MARGEN + 160, y)
+      c.fillText(recortar(c, d.motivo || '—', anchoValor), MARGEN + 160, y)
 
       for (const [etiqueta, valor] of extras) {
         y += 30
@@ -189,7 +182,7 @@ export default function BlankReceipt() {
         c.fillText(`${etiqueta}:`, MARGEN, y)
         c.font = `bold 17px ${serif}`
         c.fillStyle = '#111111'
-        c.fillText(valor, MARGEN + 160, y)
+        c.fillText(recortar(c, valor, anchoValor), MARGEN + 160, y)
       }
 
       y += 46
@@ -231,12 +224,12 @@ export default function BlankReceipt() {
       c.textAlign = 'right'
       c.fillText(money(total), der, y)
 
-      if (tipo.leyenda) {
+      if (lineasLeyenda.length) {
         y += 40
         c.font = `italic 13px ${serif}`
         c.fillStyle = '#333333'
         c.textAlign = 'left'
-        for (const linea of envolver(c, tipo.leyenda, ANCHO - MARGEN * 2)) {
+        for (const linea of lineasLeyenda) {
           c.fillText(linea, MARGEN, y)
           y += 19
         }

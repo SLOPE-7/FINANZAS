@@ -75,6 +75,7 @@ export default function Categories() {
               <Row
                 cat={p}
                 isParent
+                hasChildren={p.children.length > 0}
                 editing={editing}
                 setEditing={setEditing}
                 onSaved={load}
@@ -99,7 +100,7 @@ export default function Categories() {
   )
 }
 
-function Row({ cat, isParent, editing, setEditing, onSaved, onError, onAddChild }) {
+function Row({ cat, isParent, hasChildren, editing, setEditing, onSaved, onError, onAddChild }) {
   const abierto = editing === cat.id
 
   if (abierto) {
@@ -133,7 +134,10 @@ function Row({ cat, isParent, editing, setEditing, onSaved, onError, onAddChild 
       </button>
       <button className="btn btn-ghost faint" style={{ fontSize: 12, padding: '4px 8px' }}
               onClick={async () => {
-                if (!confirm(`¿Archivar "${cat.name}"?`)) return
+                const msg = hasChildren
+                  ? `¿Archivar "${cat.name}" y todas sus subcategorías?`
+                  : `¿Archivar "${cat.name}"?`
+                if (!confirm(msg)) return
                 try { await archiveCategory(cat.id); onSaved() }
                 catch (e) { onError(e.message) }
               }}>
@@ -190,7 +194,12 @@ function Editor({ initial, esSub, onSave, onCancel }) {
         <button className="btn btn-ghost grow" onClick={onCancel}>Cancelar</button>
         <button
           className="btn btn-primary grow"
-          onClick={() => name.trim() && onSave({ name, emoji: emoji || '📌', color: '#8b8b93' })}
+          onClick={() => name.trim() && onSave({
+            name,
+            emoji: emoji || '📌',
+            // Conserva el color que ya tenía; solo las nuevas toman gris.
+            color: initial?.color || '#8b8b93'
+          })}
         >
           Guardar
         </button>

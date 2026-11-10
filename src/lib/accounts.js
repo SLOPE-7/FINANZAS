@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js'
+import { parseAmount } from './format.js'
 
 export const ACCOUNT_TYPES = [
   { value: 'banco',      label: 'Banco',              emoji: '🏦' },
@@ -74,15 +75,17 @@ function clean(v) {
     type: v.type,
     emoji: v.emoji || '🏦',
     initial_balance: toNumber(v.initial_balance),
-    credit_limit:  isCard ? toNumber(v.credit_limit) : null,
+    credit_limit:  isCard && v.credit_limit !== '' && v.credit_limit != null ? toNumber(v.credit_limit) : null,
     statement_day: isCard ? toDay(v.statement_day) : null,
     due_day:       isCard ? toDay(v.due_day) : null
   }
 }
 
 function toNumber(x) {
-  const n = Number(String(x ?? '').replace(/,/g, ''))
-  return Number.isFinite(n) ? n : 0
+  if (x === '' || x === null || x === undefined) return 0
+  const n = parseAmount(x)
+  if (Number.isNaN(n)) throw new Error('Hay un monto que no es un número válido')
+  return n
 }
 
 function toDay(x) {

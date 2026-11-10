@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { money, shortDate, daysUntil, todayISO } from '../lib/format.js'
+import { money, shortDate, daysUntil, todayISO, parseAmount } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
 import {
   listPending, listHistory, committed,
@@ -54,9 +54,12 @@ export default function Payments() {
   }
 
   const { total, vencido } = committed(pendientes)
+  // Para una deuda importa lo que falta; para un ahorro, lo que llevas.
   const saldoDe = (id) => {
     const a = accounts.find(x => x.id === id)
-    return a ? Math.abs(Number(a.balance)) : null
+    if (!a) return null
+    const monto = money(Math.abs(Number(a.balance)))
+    return a.type === 'tarjeta' ? `faltan ${monto}` : `llevas ${monto}`
   }
 
   return (
@@ -130,7 +133,7 @@ export default function Payments() {
                   <span className="grow">
                     <span style={{ display: 'block' }}>{p.name}</span>
                     <span className="faint" style={{ fontSize: 12 }}>
-                      {shortDate(p.due_date)} · {p.status}
+                      {shortDate(p.due_date)} · {p.status === 'pagado' ? 'pagado' : 'omitido'}
                     </span>
                   </span>
                   <span className="figure-md num faint">{money(p.amount)}</span>
@@ -165,7 +168,7 @@ function PendingRow({ payment: p, restante, onPay, onEdit, onSkip, onDelete }) {
           <span className={clase} style={{ fontSize: 12 }}>
             {estado}
             {restante !== null && (
-              <span className="faint"> · faltan {money(restante)}</span>
+              <span className="faint"> · {restante}</span>
             )}
           </span>
         </span>
@@ -208,10 +211,13 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
   const [busy, setBusy] = useState(false)
 
   const destino = accounts.find(a => a.id === p.target_account_id)
-  const restante = destino ? Math.abs(Number(destino.balance)) : null
+  const saldoDestino = destino ? money(Math.abs(Number(destino.balance))) : ''
 
   async function confirmar() {
     if (!accountId) { setError('Elige la cuenta de donde salió'); return }
+    if (String(amount).trim() !== '' && !(parseAmount(amount) > 0)) {
+      setError('El monto tiene que ser un número mayor que cero'); return
+    }
     setBusy(true); setError('')
     try {
       await markPaid({ paymentId: p.id, accountId, paidOn, amount })
@@ -238,7 +244,8 @@ function PayDialog({ payment: p, accounts, onDone, onCancel }) {
           </div>
           {destino && (
             <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-              Abona a {destino.emoji} {destino.name} · faltan {money(restante)}
+              Abona a {destino.emoji} {destino.name} ·{' '}
+              {destino.type === 'tarjeta' ? `faltan ${saldoDestino}` : `llevas ${saldoDestino}`}
             </div>
           )}
         </div>

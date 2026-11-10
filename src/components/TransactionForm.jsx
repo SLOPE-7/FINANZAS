@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { todayISO } from '../lib/format.js'
+import { todayISO, parseAmount } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
 import { createTransaction, updateTransaction } from '../lib/transactions.js'
 import CategorySelect from './CategorySelect.jsx'
@@ -67,7 +67,7 @@ export default function TransactionForm({ tx, onDone, onCancel }) {
 
   async function save() {
     if (!v.account_id) { setError('Elige una cuenta'); return }
-    if (Number(v.amount) <= 0) { setError('El monto tiene que ser mayor que cero'); return }
+    if (!(parseAmount(v.amount) > 0)) { setError('El monto tiene que ser un número mayor que cero'); return }
     if (esTransferencia && !v.to_account_id) { setError('Elige la cuenta de destino'); return }
     if (esTransferencia && v.account_id === v.to_account_id) {
       setError('Las dos cuentas deben ser distintas'); return

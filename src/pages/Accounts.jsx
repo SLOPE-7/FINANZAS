@@ -88,8 +88,14 @@ export default function Accounts() {
               key={a.id}
               account={a}
               onEdit={() => abrirEdicion(a.id)}
-              onArchive={async () => { await archiveAccount(a.id); load() }}
-              onUnarchive={async () => { await unarchiveAccount(a.id); load() }}
+              onArchive={async () => {
+                try { await archiveAccount(a.id); load() }
+                catch (e) { setError(e.message) }
+              }}
+              onUnarchive={async () => {
+                try { await unarchiveAccount(a.id); load() }
+                catch (e) { setError(e.message) }
+              }}
               onDelete={async () => {
                 if (!confirm(`¿Borrar "${a.name}"?`)) return
                 try { await deleteAccount(a.id); load() }

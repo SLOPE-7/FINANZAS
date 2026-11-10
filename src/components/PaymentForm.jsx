@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { todayISO, money } from '../lib/format.js'
+import { todayISO, money, parseAmount } from '../lib/format.js'
 import { listAccounts } from '../lib/accounts.js'
 import { RECURRENCES, createPayment, updatePayment } from '../lib/payments.js'
 import CategorySelect from './CategorySelect.jsx'
@@ -32,11 +32,13 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
   )
 
   const destino = accounts.find(a => a.id === v.target_account_id)
-  const restante = destino ? Math.abs(Number(destino.balance)) : 0
+  const esDeuda = destino?.type === 'tarjeta'
+  const saldoDestino = destino ? Math.abs(Number(destino.balance)) : 0
 
   async function save() {
     if (!v.name.trim()) { setError('Ponle un nombre al pago'); return }
-    if (Number(v.amount) <= 0) { setError('El monto tiene que ser mayor que cero'); return }
+    if (!(parseAmount(v.amount) > 0)) { setError('El monto tiene que ser un número mayor que cero'); return }
+    if (!v.due_date) { setError('Elige la fecha del próximo pago'); return }
 
     setBusy(true); setError('')
     try {
@@ -102,7 +104,9 @@ export default function PaymentForm({ payment, onDone, onCancel }) {
 
           {abona ? (
             <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
-              Faltan {money(restante)}. Cada cuota baja ese saldo y no cuenta como gasto.
+              {esDeuda
+                ? `Faltan ${money(saldoDestino)}. Cada cuota baja esa deuda y no cuenta como gasto.`
+                : `Llevas ${money(saldoDestino)} ahorrado. Cada cuota se suma y no cuenta como gasto.`}
             </p>
           ) : (
             <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>

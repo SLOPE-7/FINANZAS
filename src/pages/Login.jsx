@@ -17,10 +17,15 @@ export default function Login() {
       ? supabase.auth.signInWithPassword({ email, password })
       : supabase.auth.signUp({ email, password })
 
-    const { data, error } = await fn
+    let data, error
+    try {
+      ({ data, error } = await fn)
+    } catch (e) {
+      error = e
+    }
     setBusy(false)
 
-    if (error) { setError(error.message); return }
+    if (error) { setError(traducir(error.message)); return }
     if (mode === 'signup' && !data.session) {
       setNotice('Revisa tu correo para confirmar la cuenta.')
     }
@@ -70,4 +75,16 @@ export default function Login() {
       </form>
     </div>
   )
+}
+
+// Supabase responde en inglés; estos son los mensajes más comunes.
+function traducir(msg = '') {
+  const m = msg.toLowerCase()
+  if (m.includes('invalid login credentials')) return 'Correo o contraseña incorrectos.'
+  if (m.includes('email not confirmed')) return 'Confirma tu correo antes de entrar. Revisa tu bandeja de entrada.'
+  if (m.includes('already registered')) return 'Ya existe una cuenta con ese correo.'
+  if (m.includes('password should be')) return 'La contraseña es demasiado corta o débil.'
+  if (m.includes('rate limit') || m.includes('too many')) return 'Demasiados intentos. Espera un momento y vuelve a probar.'
+  if (m.includes('failed to fetch') || m.includes('network')) return 'Sin conexión. Revisa tu internet.'
+  return msg
 }

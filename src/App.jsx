@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { supabase } from './lib/supabase.js'
+import { supabase, configError } from './lib/supabase.js'
 import Layout from './components/Layout.jsx'
 import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -15,10 +15,14 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setLoading(false)
-    })
+    if (!supabase) { setLoading(false); return }
+
+    // Si getSession falla (sin red, token corrupto) se muestra el login
+    // en vez de quedarse en "Cargando…" para siempre.
+    supabase.auth.getSession()
+      .then(({ data }) => setSession(data.session))
+      .catch(e => console.error('getSession:', e.message))
+      .finally(() => setLoading(false))
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s)
@@ -28,11 +32,15 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!session) return
+    if (!session || !supabase) return
     supabase.rpc('seed_default_categories').then(({ error }) => {
       if (error) console.error('seed_default_categories:', error.message)
     })
   }, [session?.user?.id])
+
+  if (configError) {
+    return <div className="auth"><div className="error">{configError}</div></div>
+  }
 
   if (loading) {
     return <div className="auth"><span className="faint">Cargando…</span></div>

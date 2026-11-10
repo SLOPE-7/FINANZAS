@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { parseAmount } from '../lib/format.js'
 import { ACCOUNT_TYPES, createAccount, updateAccount } from '../lib/accounts.js'
 
 const EMOJIS = ['🏦', '💵', '💳', '📱', '🐷', '🏧', '💰', '📊', '🤝', '💼']
@@ -22,22 +23,20 @@ export default function AccountForm({ account, onDone, onCancel }) {
   const [busy, setBusy] = useState(false)
 
   const esTarjeta = v.type === 'tarjeta'
-  const set = (k) => (e) => setV({ ...v, [k]: e.target.value })
+  const set = (k) => (e) => setV(prev => ({ ...prev, [k]: e.target.value }))
 
-  // Acepta comas de miles y espacios: en el móvil es fácil que se cuelen
-  // al pegar o al escribir, y antes rompían el número en silencio.
-  function aNumero(x) {
-    const limpio = String(x ?? '').replace(/[\s,]/g, '')
-    const n = Number(limpio)
-    return Number.isFinite(n) ? n : NaN
-  }
 
   async function save() {
     if (!v.name.trim()) { setError('Ponle un nombre a la cuenta'); return }
 
-    const monto = aNumero(v.initial_balance || 0)
+    // Acepta comas de miles y espacios: en el móvil es fácil que se cuelen.
+    const monto = v.initial_balance === '' ? 0 : parseAmount(v.initial_balance)
     if (Number.isNaN(monto)) {
       setError('El saldo no es un número válido')
+      return
+    }
+    if (esTarjeta && v.credit_limit !== '' && !(parseAmount(v.credit_limit) >= 0)) {
+      setError('El límite de crédito no es un número válido')
       return
     }
 
@@ -95,7 +94,7 @@ export default function AccountForm({ account, onDone, onCancel }) {
               <button
                 key={e}
                 type="button"
-                onClick={() => setV({ ...v, emoji: e })}
+                onClick={() => setV(prev => ({ ...prev, emoji: e }))}
                 className="btn"
                 style={{
                   padding: '8px 10px',

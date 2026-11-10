@@ -12,7 +12,10 @@ export async function listCategories(kind) {
 // en los desplegables y en la pantalla de categorías.
 export async function listCategoryTree(kind) {
   const flat = await listCategories(kind)
-  const padres = flat.filter(c => !c.parent_id)
+  const ids = new Set(flat.map(c => c.id))
+  // Una subcategoría cuyo padre está archivado se muestra suelta,
+  // para que no desaparezca de los desplegables.
+  const padres = flat.filter(c => !c.parent_id || !ids.has(c.parent_id))
   return padres
     .map(p => ({ ...p, children: flat.filter(c => c.parent_id === p.id) }))
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -30,15 +33,20 @@ export async function createCategory({ name, kind, emoji, color, parent_id }) {
 }
 
 export async function updateCategory(id, { name, emoji, color }) {
+  const cambios = { name: (name ?? '').trim(), emoji }
+  // Solo se toca el color si viene: antes cada edición lo pisaba con gris.
+  if (color) cambios.color = color
   const { error } = await supabase
     .from('categories')
-    .update({ name: (name ?? '').trim(), emoji, color })
+    .update(cambios)
     .eq('id', id)
   if (error) throw error
 }
 
+// Archivar un padre archiva también sus subcategorías.
 export async function archiveCategory(id) {
   const { error } = await supabase
-    .from('categories').update({ archived: true }).eq('id', id)
+    .from('categories').update({ archived: true })
+    .or(`id.eq.${id},parent_id.eq.${id}`)
   if (error) throw error
 }

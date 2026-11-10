@@ -1,11 +1,8 @@
-import { useEffect, useState } from 'react'
-import { money, shortDate, todayISO } from '../lib/format.js'
+import { useEffect, useRef, useState } from 'react'
+import { money, shortDate, todayISO, monthName } from '../lib/format.js'
 import { listTransactions, monthTotals, deleteTransaction } from '../lib/transactions.js'
 import TransactionForm from '../components/TransactionForm.jsx'
 import Receipt from '../components/Receipt.jsx'
-
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-               'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
 export default function Transactions() {
   const [month, setMonth] = useState(todayISO().slice(0, 7) + '-01')
@@ -15,14 +12,20 @@ export default function Transactions() {
   const [editing, setEditing] = useState(null)
   const [receipt, setReceipt] = useState(null)
 
+  // Cada carga lleva un número; si el usuario cambia de mes rápido,
+  // una respuesta vieja que llega tarde no pisa la del mes actual.
+  const ultimaCarga = useRef(0)
+
   async function load() {
+    const id = ++ultimaCarga.current
     setLoading(true); setError('')
     try {
-      setItems(await listTransactions({ month }))
+      const data = await listTransactions({ month })
+      if (id === ultimaCarga.current) setItems(data)
     } catch (e) {
-      setError(e.message)
+      if (id === ultimaCarga.current) setError(e.message)
     }
-    setLoading(false)
+    if (id === ultimaCarga.current) setLoading(false)
   }
 
   useEffect(() => { load() }, [month])
@@ -65,7 +68,7 @@ export default function Transactions() {
       <div className="between">
         <button className="btn btn-ghost" onClick={() => moverMes(-1)}>‹</button>
         <span style={{ fontSize: 14, fontWeight: 500 }}>
-          {MESES[am - 1]} {ay}
+          {monthName(am)} {ay}
         </span>
         <button className="btn btn-ghost" onClick={() => moverMes(1)}>›</button>
       </div>
@@ -137,7 +140,7 @@ function Row({ tx: t, onEdit, onDelete, onReceipt }) {
     icono = '🔄'
     detalle = `${t.account?.name ?? '?'} → ${t.destino?.name ?? '?'}`
   } else {
-    detalle = `${detalle} · ${t.account?.name ?? ''}`
+    if (t.account?.name) detalle = `${detalle} · ${t.account.name}`
   }
 
   return (

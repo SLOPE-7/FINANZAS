@@ -103,7 +103,7 @@ export default function Dashboard() {
 
               return (
                 <div key={p.id} className="list-item" style={{ cursor: 'default' }}>
-                  <span style={{ fontSize: 17 }}>{p.category?.emoji ?? '📅'}</span>
+                  <span style={{ fontSize: 17 }}>{p.target?.emoji ?? p.category?.emoji ?? '📅'}</span>
                   <span className="grow">
                     <span style={{ display: 'block' }}>{p.name}</span>
                     <span className={clase} style={{ fontSize: 12 }}>{texto}</span>
